@@ -47,8 +47,11 @@ const HomePage = () => {
   const [search, setSearch] = useState({ location: '', type: '', price: '' });
 
   useEffect(() => {
-    propertyService.getList({ limit: 3, sort: '-createdAt' })
-      .then((res) => setNewestProperties(res.data?.properties || []))
+    propertyService.getList({ limit: 10, sort: '-createdAt', availability: 'available' })
+      .then((res) => {
+        const list = (res.data?.properties || []).filter((p) => (p.availability || 'available') === 'available');
+        setNewestProperties(list.slice(0, 3));
+      })
       .catch(() => { })
       .finally(() => setLoadingProps(false));
   }, []);

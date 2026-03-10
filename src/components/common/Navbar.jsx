@@ -93,9 +93,9 @@ const Navbar = ({ transparent = false }) => {
                   </span>
                 )}
               </div>
-              <Avatar name={user?.fullName || 'U'} size="sm" />
+              <Avatar name={user?.fullName || user?.userName || 'U'} size="sm" />
               <span className={`text-[14px] font-semibold max-lg:hidden ${isSolid ? 'text-dark' : 'text-white'}`}>
-                {user?.fullName?.split(' ')[0]}
+                {user?.fullName?.split(' ')[0] || user?.userName?.split(' ')[0] || 'U'}
               </span>
               <span className={`text-[11px] max-lg:hidden ${isSolid ? 'text-gray' : 'text-white'}`}>▾</span>
 

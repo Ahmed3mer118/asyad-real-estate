@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authService, userService } from '../../../services/index.js';
+import { getUserIdFromToken, getRole } from '../../../utils/authUtils.js';
 import { toast } from 'react-toastify';
 
 const USER_KEY = 'asyad_user';
@@ -46,9 +47,28 @@ export const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await authService.login(form.email, form.password);
-      const { data } = await userService.getMe();
-      const user = data?.user || {};
+      const loginRes = await authService.login(form.email, form.password);
+      const loginData = loginRes?.data ?? loginRes ?? {};
+      let user = loginData?.user || {};
+      try {
+        const { data } = await userService.getMe();
+        user = data?.user || data || user;
+      } catch (meErr) {
+        if (meErr.response?.status === 403) {
+          user = {
+            ...user,
+            id: user.id || user._id || getUserIdFromToken(),
+            _id: user._id || user.id || getUserIdFromToken(),
+            email: user.email || form.email,
+            role: user.role || getRole() || 'user',
+            fullName: user.fullName || user.userName || form.email?.split('@')[0],
+          };
+        } else {
+          throw meErr;
+        }
+      }
+      if (!user.id && user._id) user.id = user._id;
+      if (!user._id && user.id) user._id = user.id;
       localStorage.setItem(USER_KEY, JSON.stringify(user));
       toast.success('Welcome back! 👋');
       const role = (user.role || '').toLowerCase();

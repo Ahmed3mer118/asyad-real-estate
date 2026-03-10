@@ -27,7 +27,16 @@ export function getStoredUser() {
   }
 }
 
-export function getRole() {
+/** Prefer stored user id, then id from JWT (so My Payments works even if getMe didn't return _id). */
+export function getCurrentUserId() {
+  const user = getStoredUser();
+  const fromUser = user?.id ?? user?._id ?? null;
+  if (fromUser) return fromUser;
+  return getUserIdFromToken();
+}
+
+/** Decode JWT payload (no verification; used for id/role from our own token). */
+function decodeTokenPayload() {
   const token = getToken();
   if (!token) return null;
   const str = typeof token === 'string' ? token : (token?.token ?? '');
@@ -41,11 +50,22 @@ export function getRole() {
         .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
         .join('')
     );
-    const decoded = JSON.parse(jsonPayload);
-    return decoded.role || null;
+    return JSON.parse(jsonPayload);
   } catch {
     return null;
   }
+}
+
+/** User id from JWT (common claims: sub, id, userId, _id). */
+export function getUserIdFromToken() {
+  const payload = decodeTokenPayload();
+  if (!payload) return null;
+  return payload.id ?? payload.userId ?? payload.sub ?? payload._id ?? null;
+}
+
+export function getRole() {
+  const payload = decodeTokenPayload();
+  return payload?.role ?? null;
 }
 
 export function isAuthenticated() {

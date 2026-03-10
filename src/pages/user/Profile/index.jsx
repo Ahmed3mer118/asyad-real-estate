@@ -27,7 +27,7 @@ const ProfilePage = () => {
           <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6">
             <Avatar name={user.fullName || user.username || 'U'} size="lg" />
             <div className="flex-1 text-center sm:text-left">
-              <h2 className="font-display text-xl font-bold text-dark">{user.fullName || user.username || '—'}</h2>
+              <h2 className="font-display text-xl font-bold text-dark">{user.fullName || user.userName || 'U'}</h2>
               <p className="text-gray mt-1">{user.email || '—'}</p>
               {user.role && (
                 <span className="inline-block mt-2 px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
@@ -37,7 +37,7 @@ const ProfilePage = () => {
               <div className="mt-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Contact</h3>
                 <p className="text-sm text-slate-600">Email: {user.email || '—'}</p>
-                <p className="text-sm text-slate-600">Phone: {user.phoneNumber || user.phone_number || '—'}</p>
+                <p className="text-sm text-slate-600">Phone: {user.phoneNumber || user.phoneNumber || '—'}</p>
               </div>
               <div className="mt-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Services</h3>

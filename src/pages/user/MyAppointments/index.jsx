@@ -54,7 +54,7 @@ const MyAppointmentsPage = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <p className="font-bold text-slate-800">
-                      {a.property?.name || a.property?.title || 'Property'}
+                      {a.propertyId?.name || a.propertyId?.title || 'Property'}
                     </p>
                     <p className="text-sm text-slate-500 mt-1">
                       {a.formattedDate} · {a.formattedStartTime} – {a.formattedEndTime}

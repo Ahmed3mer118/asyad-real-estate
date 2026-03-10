@@ -25,6 +25,7 @@ const TransactionsPage = lazy(() => import('./pages/dashboard/dashboardPages.jsx
 const TasksPage = lazy(() => import('./pages/dashboard/dashboardPages.jsx').then(m => ({ default: m.TasksPage })));
 const EvaluationsPage = lazy(() => import('./pages/dashboard/dashboardPages.jsx').then(m => ({ default: m.EvaluationsPage })));
 const FinancialsPage = lazy(() => import('./pages/dashboard/dashboardPages.jsx').then(m => ({ default: m.FinancialsPage })));
+const ReportsPage = lazy(() => import('./pages/dashboard/Reports/index.jsx'));
 const PropertyDetailPage = lazy(() => import('./pages/user/PropertyDetail/index.jsx'));
 const MyAppointmentsPage = lazy(() => import('./pages/user/MyAppointments/index.jsx'));
 const MyPaymentsPage = lazy(() => import('./pages/user/MyPayments/index.jsx'));
@@ -108,6 +109,7 @@ const App = () => (
           <Route path="/dashboard/tasks" element={<PrivateRoute allowedRoles={['admin']}><TasksPage /></PrivateRoute>} />
           <Route path="/dashboard/evaluations" element={<PrivateRoute allowedRoles={['admin']}><EvaluationsPage /></PrivateRoute>} />
           <Route path="/dashboard/financials" element={<PrivateRoute allowedRoles={['admin']}><FinancialsPage /></PrivateRoute>} />
+          <Route path="/dashboard/reports" element={<PrivateRoute allowedRoles={['admin']}><ReportsPage /></PrivateRoute>} />
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />

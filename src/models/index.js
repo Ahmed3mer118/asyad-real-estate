@@ -72,7 +72,7 @@ export class Request {
   }
 }
 
-// models/Payment.js — backend: transactionId, installmentId?, paymentMethod (cash|visa|bank_transfer|cheque), amount, paymentDate, status (paid|partial|overdue|cancelled)
+// models/Payment.js — backend: transactionId, installmentId?, paymentMethod (cash|visa|bank_transfer|check), amount, paymentDate, status
 export class Payment {
   constructor(data = {}) {
     this.id = data._id || data.id || null;
@@ -81,7 +81,8 @@ export class Payment {
     this.transaction = typeof tx === 'object' ? tx : data.transaction || null;
     this.installmentId = data.installmentId || data.installment || null;
     this.amount = data.amount || 0;
-    this.paymentMethod = data.paymentMethod || data.method || 'cash';
+    const method = data.paymentMethod || data.method || 'cash';
+    this.paymentMethod = method === 'cheque' ? 'check' : method;
     this.method = this.paymentMethod;
     this.paymentDate = data.paymentDate ? new Date(data.paymentDate) : null;
     this.status = data.status || 'paid';
@@ -192,6 +193,8 @@ export class Transaction {
     this.transactionDate = data.transactionDate ? new Date(data.transactionDate) : null;
     this.totalAmount = data.totalAmount || 0;
     this.paidAmount = data.paidAmount || 0;
+    this.employeeCommissionRate = data.employeeCommissionRate ?? data.commissionRate ?? null;
+    this.employeeCommissionAmount = data.employeeCommissionAmount ?? data.commissionAmount ?? null;
     this.createdAt = data.createdAt ? new Date(data.createdAt) : null;
   }
 

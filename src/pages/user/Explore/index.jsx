@@ -58,7 +58,7 @@ const ExplorePage = () => {
   const fetchProperties = async () => {
     setLoading(true);
     try {
-      const params = { page, limit: LIMIT };
+      const params = { page, limit: LIMIT, availability: 'available' };
       if (debouncedSearch) params.search = debouncedSearch;
       if (filters.city) params.city = filters.city;
       if (filters.type) params.type = filters.type;
@@ -69,8 +69,10 @@ const ExplorePage = () => {
       if (filters.furnished) params.furnished = filters.furnished;
       if (filters.sort) params.sort = filters.sort;
       const res = await propertyService.getList(params);
-      setProperties(res.data?.properties || []);
-      setTotal(res.data?.total || 0);
+      const list = res.data?.properties || [];
+      const availableOnly = list.filter((p) => (p.availability || 'available') === 'available');
+      setProperties(availableOnly);
+      setTotal(res.data?.total ?? 0);
     } catch {
       setProperties([]);
       setTotal(0);

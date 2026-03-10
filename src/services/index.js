@@ -371,6 +371,11 @@ class InstallmentService extends ApiService {
     return data?.data ?? data;
   }
 
+  /**
+   * Generate installments for a transaction.
+   * Payload: { transactionId, startDate, numberOfInstallments, frequency, replaceExisting? }.
+   * If replaceExisting is true, backend should delete existing installments for this transaction first, then create the new schedule (avoids duplicates when changing date).
+   */
   async generateInstallments(payload) {
     const { data } = await this.client.post('/installments/generate', payload);
     return { data: data?.data ?? data, count: data?.count } ?? {};
@@ -388,31 +393,31 @@ class NotificationService extends ApiService {
     super('notifications');
   }
 
-  async getMyNotifications(params = {}) {
-    const res = await this.getAll(params);
-    return {
-      ...res,
-      data: {
-        ...res.data,
-        notifications: Notification.fromArray(res.data?.notifications || []),
-        unreadCount: res.data?.unreadCount || 0,
-      },
-    };
-  }
+  // async getMyNotifications(params = {}) {
+  //   const res = await this.getAll(params);
+  //   return {
+  //     ...res,
+  //     data: {
+  //       ...res.data,
+  //       notifications: Notification.fromArray(res.data?.notifications || []),
+  //       unreadCount: res.data?.unreadCount || 0,
+  //     },
+  //   };
+  // }
 
-  async markOneRead(id) {
-    const { data } = await this.client.patch(`/notifications/${id}/read`);
-    return data;
-  }
+  // async markOneRead(id) {
+  //   const { data } = await this.client.patch(`/notifications/${id}/read`);
+  //   return data;
+  // }
 
-  async markAllRead() {
-    const { data } = await this.client.patch('/notifications/read-all');
-    return data;
-  }
+  // async markAllRead() {
+  //   const { data } = await this.client.patch('/notifications/read-all');
+  //   return data;
+  // }
 
-  async deleteOne(id) {
-    return this.delete(id);
-  }
+  // async deleteOne(id) {
+  //   return this.delete(id);
+  // }
 }
 
 const notificationService = new NotificationService();
@@ -602,7 +607,7 @@ class TransactionService extends ApiService {
 
   async getTransactions(params = {}) {
     const { data } = await this.client.get('/transactions', { params });
-    const list = data?.data ?? data?.transactions ?? [];
+    const list = Array.isArray(data?.data) ? data.data : (data?.data?.transactions ?? data?.transactions ?? []);
     const arr = Array.isArray(list) ? list : [];
     const total = data?.total ?? data?.pagination?.total ?? arr.length;
     return {
@@ -617,7 +622,7 @@ class TransactionService extends ApiService {
   async getMyTransactions(params = {}) {
     try {
       const { data } = await this.client.get('/transactions/me', { params });
-      const list = data?.data ?? data?.transactions ?? [];
+      const list = Array.isArray(data?.data) ? data.data : (data?.data?.transactions ?? data?.transactions ?? []);
       const arr = Array.isArray(list) ? list : [];
       return { data: { transactions: Transaction.fromArray(arr), total: arr.length } };
     } catch (e) {

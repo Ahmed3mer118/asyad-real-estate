@@ -185,7 +185,7 @@ const PropertyDetailPage = () => {
             )}
           </div>
 
-          {/* Sidebar: Book viewing */}
+          {/* Sidebar: Book viewing (only if property still available — لا حجز بعد البيع/الإيجار) */}
           <div className="lg:col-span-1">
             <div className="sticky top-24 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50">
@@ -193,7 +193,13 @@ const PropertyDetailPage = () => {
                 <p className="text-sm text-gray mt-1">Choose date and time for the viewing</p>
               </div>
               <div className="p-6">
-                {isAuth ? (
+                {(property.availability || 'available') !== 'available' ? (
+                  <div className="text-center py-6 px-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="font-semibold text-amber-800">هذا العقار غير متاح للزيارات</p>
+                    <p className="text-sm text-amber-700 mt-1">تم بيع أو تأجير هذا العقار ولا يمكن حجز مواعيد عليه.</p>
+                    <Link to="/explore" className="inline-block mt-4 text-primary font-semibold hover:underline">استعرض عقارات متاحة</Link>
+                  </div>
+                ) : isAuth ? (
                   <form onSubmit={handleBookViewing} className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-1">Date</label>

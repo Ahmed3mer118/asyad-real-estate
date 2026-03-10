@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { icon: '👷', label: 'Employees', path: '/dashboard/employees' },
   { icon: '🧾', label: 'Transactions', path: '/dashboard/transactions' },
   { icon: '💰', label: 'Financials', path: '/dashboard/financials' },
+  { icon: '📈', label: 'Reports', path: '/dashboard/reports' },
   { icon: '📋', label: 'Tasks', path: '/dashboard/tasks' },
   { icon: '⭐', label: 'Evaluations', path: '/dashboard/evaluations' },
   { icon: '🔔', label: 'Notifications', path: '/dashboard/notifications' },

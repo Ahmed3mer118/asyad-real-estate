@@ -1,5 +1,5 @@
 // pages/dashboard/dashboardPages.jsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '../../layouts/DashboardLayout.jsx';
 import {
@@ -26,6 +26,9 @@ const toId = (v) => {
   return v;
 };
 
+/** Round to 2 decimals (no fractional piasters) to avoid floating-point errors. */
+const roundMoney = (n) => Math.round(Number(n) * 100) / 100;
+
 const tableRowVariants = {
   hidden: { opacity: 0, x: -10 },
   visible: { opacity: 1, x: 0 }
@@ -48,9 +51,10 @@ export const UsersPage = () => {
 
   const load = useCallback(async () => {
     await run(async () => {
-      const res = await userService.getAllUsers({
-        page: pagination.page, limit: pagination.limit, search, role: roleFilter,
-      });
+      const params = { page: pagination.page, limit: pagination.limit };
+      if (search) params.search = search;
+      if (roleFilter) params.role = roleFilter;
+      const res = await userService.getAllUsers(params);
       setUsers(res.data?.users || []);
       pagination.setTotal(res.data?.total || 0);
     });
@@ -86,6 +90,8 @@ export const UsersPage = () => {
   };
 
   const isAlreadyEmployee = editUser && employees.some((e) => toId(e.userId) === editUser.id);
+  const filteredUsers = roleFilter ? users.filter((u) => (u.role || '') === roleFilter) : users;
+
   const addToEmployees = async () => {
     if (!editUser) return;
     await run(async () => {
@@ -117,7 +123,10 @@ export const UsersPage = () => {
             <select
               className="px-4 py-2 bg-slate-50 border-0 rounded-xl text-sm focus:ring-2 focus:ring-blue/20 transition-all outline-none cursor-pointer"
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                pagination.goToPage(1);
+              }}
             >
               <option value="">All Roles</option>
               <option value="User">User</option>
@@ -128,15 +137,15 @@ export const UsersPage = () => {
             </select>
           </div>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-            Total: {pagination.total}
+            {roleFilter ? `Role: ${roleFilter} — ${filteredUsers.length}` : `Total: ${pagination.total}`}
           </p>
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="flex justify-center items-center py-24"><Spinner size="lg" /></div>
-          ) : users.length === 0 ? (
-            <Empty icon="👥" title="No users found" />
+          ) : filteredUsers.length === 0 ? (
+            <Empty icon="👥" title={roleFilter ? `No users with role "${roleFilter}"` : 'No users found'} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -155,7 +164,7 @@ export const UsersPage = () => {
                   animate="visible"
                   className="divide-y divide-slate-50"
                 >
-                  {users.map((u) => (
+                  {filteredUsers.map((u) => (
                     <motion.tr key={u.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors group cursor-pointer" onClick={() => openEditRole(u)}>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -653,7 +662,18 @@ const payerName = (p) => {
   return c.userName || c.username || c.email || (typeof c === 'string' ? c : '—');
 };
 
-const methodLabel = (m) => (m && m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()) || m || '—';
+const PAYMENT_METHODS = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'visa', label: 'Visa' },
+  { value: 'bank_transfer', label: 'Bank transfer' },
+  { value: 'check', label: 'Check' },
+];
+const methodLabel = (m) => {
+  if (!m) return '—';
+  const s = String(m).toLowerCase();
+  const found = PAYMENT_METHODS.find((x) => x.value === s || x.value === s.replace(/-/g, '_'));
+  return found ? found.label : s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
 const statusLabel = (s) => (s && s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()) || s || '—';
 
 /* ════════════════════════════════════════════
@@ -977,6 +997,8 @@ export const EmployeesPage = () => {
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [empDetail, setEmpDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  /** Frozen commission rate per employee per transaction — لا يتغير عند تعديل النسبة، النسبة الجديدة للصفقات الجديدة فقط */
+  const commissionRateSnapshotRef = useRef({});
   const { loading, run } = useAsync();
   const pagination = usePagination(1, 10);
 
@@ -1063,7 +1085,11 @@ export const EmployeesPage = () => {
   const setF = (k, v) => setFormState((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
-    if (!selectedEmp) { setEmpDetail(null); return; }
+    if (!selectedEmp) {
+      setEmpDetail(null);
+      commissionRateSnapshotRef.current = {};
+      return;
+    }
     let cancelled = false;
     setDetailLoading(true);
     (async () => {
@@ -1082,6 +1108,15 @@ export const EmployeesPage = () => {
         const txIds = (transactions || []).map((t) => toId(t.id));
         const installments = Array.isArray(allInstallments) ? allInstallments.filter((i) => txIds.includes(toId(i.transactionId))) : [];
         setEmpDetail({ employee: emp, transactions: transactions || [], tasks, installments });
+        const empId = selectedEmp.id;
+        const byEmp = commissionRateSnapshotRef.current[empId] || {};
+        transactions.forEach((t) => {
+          const tid = t.id ?? t._id;
+          if (tid != null && byEmp[tid] === undefined) {
+            byEmp[tid] = t.employeeCommissionRate ?? emp?.commissionRate ?? 0;
+          }
+        });
+        commissionRateSnapshotRef.current[empId] = byEmp;
       } catch (_) {
         if (!cancelled) setEmpDetail(null);
       } finally {
@@ -1238,38 +1273,64 @@ export const EmployeesPage = () => {
                 }}>Save</Button>
               </div>
               <p className="text-sm text-slate-500">Total sales: {empDetail.employee?.totalSalesAmount != null ? `EGP ${new Intl.NumberFormat('en-EG').format(empDetail.employee.totalSalesAmount)}` : '—'}</p>
-              <p className="text-sm text-slate-500">Deals: {empDetail.employee?.totalDeals ?? '—'}</p>
+              <p className="text-sm text-slate-500">Deals: {empDetail.transactions?.length ?? empDetail.employee?.totalDeals ?? '—'}</p>
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-700 mb-2">Transactions / Sales ({empDetail.transactions?.length || 0})</h4>
-              <div className="max-h-40 overflow-y-auto space-y-2">
-                {(empDetail.transactions || []).length === 0 ? <p className="text-slate-500 text-sm">None</p> : empDetail.transactions.map((t) => (
-                  <div key={t.id} className="p-2 bg-white border rounded-lg text-xs flex justify-between">
-                    <span>{(t.transactionType || '').toLowerCase() === 'rent' ? 'Rent' : 'Sale'} — {t.formattedTotal}</span>
-                    <span className="text-slate-400">{t.formattedPaid} paid</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-slate-700 mb-2">Tasks ({empDetail.tasks?.length || 0})</h4>
-              <div className="max-h-32 overflow-y-auto space-y-2">
-                {(empDetail.tasks || []).length === 0 ? <p className="text-slate-500 text-sm">None</p> : empDetail.tasks.map((t) => (
-                  <div key={t.id || t._id} className="p-2 bg-white border rounded-lg text-xs">{t.title || t.taskNo || t.id}</div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-slate-700 mb-2">Installments ({empDetail.installments?.length || 0})</h4>
-              <div className="max-h-32 overflow-y-auto space-y-2">
-                {(empDetail.installments || []).length === 0 ? <p className="text-slate-500 text-sm">None</p> : empDetail.installments.slice(0, 20).map((i) => (
-                  <div key={i.id || i._id} className="p-2 bg-white border rounded-lg text-xs flex justify-between">
-                    <span>Installment #{i.installmentNo ?? ''}</span>
-                    <span>EGP {new Intl.NumberFormat('en-EG').format(i.amount || 0)} — {i.status || '—'}</span>
-                  </div>
-                ))}
-                {(empDetail.installments?.length || 0) > 20 && <p className="text-slate-400 text-xs">+{empDetail.installments.length - 20} more</p>}
-              </div>
+              <h4 className="text-sm font-bold text-slate-700 mb-2">صفقات المعاملات والعمولة — Transactions / Commission</h4>
+              {(empDetail.transactions || []).length === 0 ? (
+                <p className="text-slate-500 text-sm">None</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider">الصفقة / Deal</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">نسبة العمولة %</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">العمولة (EGP)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {(empDetail.transactions || []).map((t) => {
+                        const tid = t.id ?? t._id;
+                        const byEmp = selectedEmp?.id ? commissionRateSnapshotRef.current[selectedEmp.id] : {};
+                        const rate = t.employeeCommissionRate ?? byEmp[tid] ?? empDetail.employee?.commissionRate ?? 0;
+                        const rateNum = Number(rate) || 0;
+                        const totalNum = Number(t.totalAmount) || 0;
+                        const commissionAmount = t.employeeCommissionAmount != null ? Number(t.employeeCommissionAmount) : roundMoney(totalNum * (rateNum / 100));
+                        return (
+                          <tr key={t.id} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3">
+                              <span className="font-medium text-slate-800">{(t.transactionType || '').toLowerCase() === 'rent' ? 'Rent' : 'Sale'}</span>
+                              <span className="text-slate-500"> — {t.formattedTotal}</span>
+                              <span className="text-slate-400 text-xs block">{t.formattedPaid} paid</span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-700">{rateNum}%</td>
+                            <td className="px-4 py-3 text-right font-semibold text-green-600">EGP {new Intl.NumberFormat('en-EG').format(commissionAmount)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-50 font-semibold">
+                      <tr>
+                        <td className="px-4 py-3 text-slate-600">إجمالي العمولة</td>
+                        <td className="px-4 py-3 text-right">—</td>
+                        <td className="px-4 py-3 text-right text-green-600">
+                          EGP {new Intl.NumberFormat('en-EG').format((empDetail.transactions || []).reduce((sum, t) => {
+                            const tid = t.id ?? t._id;
+                            const byEmp = selectedEmp?.id ? commissionRateSnapshotRef.current[selectedEmp.id] : {};
+                            const rate = t.employeeCommissionRate ?? byEmp[tid] ?? empDetail.employee?.commissionRate ?? 0;
+                            const rateNum = Number(rate) || 0;
+                            const totalNum = Number(t.totalAmount) || 0;
+                            const amt = t.employeeCommissionAmount != null ? Number(t.employeeCommissionAmount) : roundMoney(totalNum * (rateNum / 100));
+                            return sum + amt;
+                          }, 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+              <p className="text-[11px] text-slate-400 mt-1">نسبة كل صفقة ثابتة عند أول فتح التفاصيل؛ التعديل على النسبة (Save) يطبق على الصفقات الجديدة فقط.</p>
             </div>
           </div>
         ) : null}
@@ -1296,7 +1357,11 @@ export const TransactionsPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [genModalOpen, setGenModalOpen] = useState(false);
   const [selectedTransForGen, setSelectedTransForGen] = useState(null);
-  const [genForm, setGenForm] = useState({ transactionId: '', startDate: '', numberOfInstallments: 12, frequency: 'monthly' });
+  const [selectedTransForDetails, setSelectedTransForDetails] = useState(null);
+  const [editTrans, setEditTrans] = useState(null);
+  const [detailInstallments, setDetailInstallments] = useState([]);
+  const [existingGenInstallments, setExistingGenInstallments] = useState([]);
+  const [genForm, setGenForm] = useState({ transactionId: '', startDate: '', numberOfInstallments: 12, frequency: 'monthly', replaceExisting: false });
   const [form, setFormState] = useState(EMPTY_TRANS);
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [userOptions, setUserOptions] = useState([]);
@@ -1331,6 +1396,20 @@ export const TransactionsPage = () => {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (modalOpen) loadOptions(); }, [modalOpen]);
 
+  useEffect(() => {
+    if (!selectedTransForDetails) { setDetailInstallments([]); return; }
+    const tid = toId(selectedTransForDetails) || toId(selectedTransForDetails.id) || selectedTransForDetails.id || selectedTransForDetails._id;
+    if (!tid) { setDetailInstallments([]); return; }
+    installmentService.getInstallments({ transactionId: tid, limit: 100 })
+      .then((r) => {
+        let list = r.data?.installments || [];
+        list = list.filter((i) => toId(i.transactionId) === tid || toId(i.transactionId) === String(tid));
+        list.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+        setDetailInstallments(list);
+      })
+      .catch(() => setDetailInstallments([]));
+  }, [selectedTransForDetails]);
+
   const openCreate = () => { setFormState(EMPTY_TRANS); setPropSearch(''); setCustSearch(''); setEmpSearch(''); setModalOpen(true); };
 
   const filterOpt = (list, search, labelFn) => {
@@ -1355,19 +1434,61 @@ export const TransactionsPage = () => {
     });
   };
 
+  const openEdit = (t) => {
+    setEditTrans({
+      transaction: t,
+      transactionType: (t.transactionType || 'sale').toLowerCase(),
+      totalAmount: String(t.totalAmount ?? ''),
+    });
+  };
+  const setEditF = (k, v) => setEditTrans((e) => (e ? { ...e, [k]: v } : e));
+  const handleEditSubmit = async (evt) => {
+    evt.preventDefault();
+    if (!editTrans?.transaction) return;
+    const id = toId(editTrans.transaction) || editTrans.transaction.id || editTrans.transaction._id;
+    if (!id) return;
+    await run(async () => {
+      await transactionService.update(id, {
+        transactionType: editTrans.transactionType,
+        totalAmount: roundMoney(Number(editTrans.totalAmount)),
+      });
+      toast.success('Transaction updated.');
+      setEditTrans(null);
+      load();
+    });
+  };
+
   const setF = (k, v) => setFormState((f) => ({ ...f, [k]: v }));
   const setG = (k, v) => setGenForm((f) => ({ ...f, [k]: v }));
 
   const openGenModal = (t) => {
     setSelectedTransForGen(t);
     const freq = INSTALLMENT_FREQUENCIES.find((f) => f.value === 'monthly');
+    const tid = toId(t) || t.id || t._id;
     setGenForm({
-      transactionId: t.id,
+      transactionId: tid,
       startDate: new Date().toISOString().slice(0, 10),
       numberOfInstallments: freq?.defaultCount ?? 12,
       frequency: 'monthly',
+      replaceExisting: false,
     });
     setGenModalOpen(true);
+    if (tid) {
+      installmentService.getInstallments({ transactionId: tid, limit: 200 })
+        .then((r) => {
+          const list = r.data?.installments || [];
+          const filtered = list.filter((i) => toId(i.transactionId) === tid || toId(i.transactionId) === String(tid));
+          setExistingGenInstallments(filtered);
+          if (filtered.length > 0) {
+            const sorted = filtered.slice().sort((a, b) => (a.installmentNo ?? 0) - (b.installmentNo ?? 0));
+            const firstDue = sorted[0]?.dueDate;
+            if (firstDue) setGenForm((f) => ({ ...f, startDate: new Date(firstDue).toISOString().slice(0, 10) }));
+          }
+        })
+        .catch(() => setExistingGenInstallments([]));
+    } else {
+      setExistingGenInstallments([]);
+    }
   };
 
   const onGenFrequencyChange = (frequency) => {
@@ -1381,11 +1502,48 @@ export const TransactionsPage = () => {
 
   const handleGenerateInstallments = async (evt) => {
     evt.preventDefault();
+    if (existingGenInstallments.length > 0 && !genForm.replaceExisting) {
+      toast.error('This transaction already has installments. Check "Replace existing installments" to update the schedule (or use "Update dates only" below).');
+      return;
+    }
     await run(async () => {
-      await installmentService.generateInstallments(genForm);
-      toast.success('Installments generated');
+      await installmentService.generateInstallments({
+        transactionId: genForm.transactionId,
+        startDate: genForm.startDate,
+        numberOfInstallments: genForm.numberOfInstallments,
+        frequency: genForm.frequency,
+        replaceExisting: !!genForm.replaceExisting,
+      });
+      toast.success(existingGenInstallments.length > 0 ? 'Installments updated (previous schedule replaced).' : 'Installments generated.');
       setGenModalOpen(false);
       setSelectedTransForGen(null);
+      setExistingGenInstallments([]);
+      load();
+    });
+  };
+
+  const handleUpdateDatesOnly = async () => {
+    if (existingGenInstallments.length === 0) return;
+    const sorted = existingGenInstallments.slice().sort((a, b) => (a.installmentNo ?? 0) - (b.installmentNo ?? 0));
+    const firstDue = sorted[0]?.dueDate;
+    if (!firstDue) { toast.error('Could not read current dates.'); return; }
+    const newStart = new Date(genForm.startDate + 'T00:00:00');
+    const oldFirst = new Date(firstDue);
+    if (Number.isNaN(newStart.getTime()) || Number.isNaN(oldFirst.getTime())) { toast.error('Invalid date.'); return; }
+    const deltaMs = newStart.getTime() - oldFirst.getTime();
+    await run(async () => {
+      for (const inst of sorted) {
+        const id = toId(inst) || inst.id || inst._id;
+        if (!id) continue;
+        const oldDue = new Date(inst.dueDate);
+        const newDue = new Date(oldDue.getTime() + deltaMs);
+        await installmentService.updateInstallment(id, { dueDate: newDue.toISOString() });
+      }
+      toast.success('Installment dates updated (no new installments added).');
+      
+      setGenModalOpen(false);
+      setSelectedTransForGen(null);
+      setExistingGenInstallments([]);
       load();
     });
   };
@@ -1429,9 +1587,10 @@ export const TransactionsPage = () => {
                         <p className="text-xs font-semibold text-slate-400">Paid: {t.formattedPaid}</p>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-2 justify-end flex-wrap">
+                          <Button size="sm" variant="outline" onClick={() => openEdit(t)} className="!rounded-lg !text-xs">Edit</Button>
                           <Button size="sm" variant="outline" onClick={() => openGenModal(t)} className="!rounded-lg !text-xs">Set installments</Button>
-                          <Button size="sm" variant="ghost" className="!text-blue">Details</Button>
+                          <Button size="sm" variant="ghost" className="!text-blue" onClick={() => setSelectedTransForDetails(t)}>Details</Button>
                         </div>
                       </td>
                     </motion.tr>
@@ -1493,12 +1652,119 @@ export const TransactionsPage = () => {
         </form>
       </Modal>
 
-      <Modal open={genModalOpen} onClose={() => { setGenModalOpen(false); setSelectedTransForGen(null); }} title="Generate installments" size="lg">
+      <Modal open={!!editTrans} onClose={() => setEditTrans(null)} title="Edit transaction" size="md">
+        {editTrans && (
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl">
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Property</p>
+                <p className="text-sm font-semibold text-slate-800 mt-1">{editTrans.transaction.property?.name || editTrans.transaction.property?.title || toId(editTrans.transaction.propertyId) || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Customer</p>
+                <p className="text-sm font-semibold text-slate-800 mt-1">{editTrans.transaction.customer?.fullName || editTrans.transaction.customer?.userName || editTrans.transaction.customer?.email || toId(editTrans.transaction.customerId) || '—'}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Type</label>
+                <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={editTrans.transactionType} onChange={(e) => setEditF('transactionType', e.target.value)}>
+                  <option value="sale">Sale</option>
+                  <option value="rent">Rent</option>
+                </select>
+              </div>
+              <Input label="Total amount (EGP)" type="number" min="0" step="0.01" value={editTrans.totalAmount} onChange={(e) => setEditF('totalAmount', e.target.value)} required />
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="ghost" type="button" onClick={() => setEditTrans(null)}>Cancel</Button>
+              <Button type="submit" loading={loading}>Save</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal open={!!selectedTransForDetails} onClose={() => setSelectedTransForDetails(null)} title="Transaction details" size="lg">
+        {selectedTransForDetails && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl">
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Property</p>
+                <p className="text-sm font-semibold text-slate-800 mt-1">{selectedTransForDetails.property?.name || selectedTransForDetails.property?.title || toId(selectedTransForDetails.propertyId) || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Customer</p>
+                <p className="text-sm font-semibold text-slate-800 mt-1">{selectedTransForDetails.customer?.fullName || selectedTransForDetails.customer?.userName || selectedTransForDetails.customer?.email || toId(selectedTransForDetails.customerId) || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Type</p>
+                <p className="text-sm font-semibold text-slate-800 mt-1"><Badge color="blue" className="!rounded-lg text-[10px]">{(selectedTransForDetails.transactionType || '').toLowerCase()}</Badge></p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Amounts</p>
+                <p className="text-sm font-semibold text-green-600 mt-1">Total: {selectedTransForDetails.formattedTotal}</p>
+                <p className="text-xs text-slate-500">Paid: {selectedTransForDetails.formattedPaid}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Installments</p>
+              {detailInstallments.length === 0 ? (
+                <p className="text-sm text-slate-500 py-4">No installments for this transaction. Use &quot;Set installments&quot; to generate.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead className="bg-slate-50/80">
+                      <tr>
+                        <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">#</th>
+                        <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">Amount</th>
+                        <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">Due date</th>
+                        <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {detailInstallments.map((i) => (
+                        <tr key={i.id || i._id} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-2">#{i.installmentNo ?? '—'}</td>
+                          <td className="px-4 py-2 font-semibold">EGP {new Intl.NumberFormat('en-EG').format(i.amount || 0)}</td>
+                          <td className="px-4 py-2 text-slate-600">{i.dueDate ? new Date(i.dueDate).toLocaleDateString('en-EG') : '—'}</td>
+                          <td className="px-4 py-2">
+                            <Badge color={(i.status || '').toLowerCase() === 'paid' ? 'green' : (i.status || '').toLowerCase() === 'overdue' ? 'red' : 'yellow'} className="!rounded-lg text-[10px]">{(i.status || 'due').toLowerCase()}</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <Button variant="ghost" onClick={() => setSelectedTransForDetails(null)}>Close</Button>
+              <Button onClick={() => { openGenModal(selectedTransForDetails); setSelectedTransForDetails(null); }}>Set installments</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={genModalOpen} onClose={() => { setGenModalOpen(false); setSelectedTransForGen(null); setExistingGenInstallments([]); }} title="Generate installments" size="lg">
         <form onSubmit={handleGenerateInstallments} className="space-y-4">
           {selectedTransForGen && (
             <div className="p-4 bg-slate-50 rounded-xl">
               <p className="text-sm font-bold text-slate-800">{selectedTransForGen.property?.name || selectedTransForGen.property?.title || 'Transaction'} — {selectedTransForGen.formattedTotal}</p>
               <p className="text-xs text-slate-500 mt-1">Total will be split into installments by frequency below.</p>
+            </div>
+          )}
+          {existingGenInstallments.length > 0 && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+              <p className="text-sm font-semibold text-amber-800">This transaction already has {existingGenInstallments.length} installment(s).</p>
+              <p className="text-xs text-amber-700">Option 1 — تعديل التاريخ فقط: change the start date below and click &quot;Update dates only&quot;. Same number of installments, no new ones added.</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <input type="date" className="px-3 py-2 border border-amber-300 rounded-xl text-sm" value={genForm.startDate} onChange={(e) => setG('startDate', e.target.value)} />
+                <Button type="button" variant="outline" size="sm" onClick={handleUpdateDatesOnly} loading={loading} className="!rounded-xl">Update dates only</Button>
+              </div>
+              <p className="text-xs text-amber-700 pt-1 border-t border-amber-200">Option 2 — Replace schedule: check the box below and click Generate to delete current installments and create a new schedule.</p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={!!genForm.replaceExisting} onChange={(e) => setG('replaceExisting', e.target.checked)} className="rounded border-amber-300" />
+                <span className="text-sm font-medium text-amber-800">Replace existing installments (delete + create new)</span>
+              </label>
             </div>
           )}
           <input type="hidden" name="transactionId" value={genForm.transactionId} />
@@ -1530,24 +1796,30 @@ export const TransactionsPage = () => {
 /* ════════════════════════════════════════════
    TASKS PAGE (Employee / Admin)
    ════════════════════════════════════════════ */
-const EMPTY_TASK = { employeeId: '', propertyId: '', title: '', description: '', dueDate: '' };
+const EMPTY_TASK = { employeeId: '', propertyId: '', title: '', description: '', dueDate: '', dueTime: '09:00' };
 
 export const TasksPage = () => {
   const [tasks, setTasks] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState(null);
   const [form, setFormState] = useState(EMPTY_TASK);
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [empSearch, setEmpSearch] = useState('');
   const [propSearch, setPropSearch] = useState('');
+  const [conflictError, setConflictError] = useState(null);
   const { loading, run } = useAsync();
   const pagination = usePagination(1, 10);
 
   const load = useCallback(async () => {
     await run(async () => {
-      const res = await taskService.getAssignedTasks({ page: pagination.page, limit: pagination.limit });
-      setTasks(res.data?.tasks || []);
-      pagination.setTotal(res.data?.total || 0);
+      const [tasksRes, empRes] = await Promise.all([
+        taskService.getAssignedTasks({ page: pagination.page, limit: pagination.limit }),
+        employeeService.getAllEmployees({ limit: 200 }).catch(() => ({ data: { employees: [] } })),
+      ]);
+      setTasks(tasksRes.data?.tasks || []);
+      pagination.setTotal(tasksRes.data?.total ?? 0);
+      setEmployeeOptions(empRes.data?.employees || []);
     });
   }, [pagination.page]);
 
@@ -1563,28 +1835,188 @@ export const TasksPage = () => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadOptions(); }, [loadOptions]);
   useEffect(() => { if (modalOpen) loadOptions(); }, [modalOpen]);
 
-  const openCreate = () => { setFormState(EMPTY_TASK); setEmpSearch(''); setPropSearch(''); setModalOpen(true); };
+  const openCreate = () => {
+    setFormState({ ...EMPTY_TASK, dueTime: '09:00' });
+    setEmpSearch('');
+    setPropSearch('');
+    setEditingTaskId(null);
+    setConflictError(null);
+    setModalOpen(true);
+  };
+
+  const openEdit = (task) => {
+    const tid = toId(task);
+    const empId = toId(task.employeeId || task.employee);
+    const due = task.dueDate ? (task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate)) : null;
+    setFormState({
+      employeeId: empId || '',
+      propertyId: toId(task.propertyId || task.property) || '',
+      title: task.title || '',
+      description: task.description || '',
+      dueDate: due ? toDateInputValue(due) : '',
+      dueTime: due ? `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}` : '09:00',
+    });
+    setEditingTaskId(tid);
+    setConflictError(null);
+    setModalOpen(true);
+  };
 
   const filterOpt = (list, search, labelFn) => {
     if (!search) return list;
     const q = search.toLowerCase();
     return list.filter((x) => labelFn(x).toLowerCase().includes(q));
   };
-  const empLabel = (e) => (e?.name || e?.email || e?.id || '').toString();
+  const empLabel = (e) => (e?.name || e?.email || e?.id || (e && typeof e === 'object' && (e._id || e.userId)) || '').toString();
   const propLabel = (p) => (p?.name || p?.title || p?.id || '').toString();
   const filteredEmps = filterOpt(employeeOptions, empSearch, empLabel);
   const filteredProps = filterOpt(propertyOptions, propSearch, propLabel);
+  const employeeById = (() => {
+    const map = {};
+    for (const e of employeeOptions) {
+      const id = toId(e);
+      if (id) {
+        map[String(id)] = e;
+        if (e._id && String(e._id) !== String(id)) map[String(e._id)] = e;
+        if (e.id && String(e.id) !== String(id)) map[String(e.id)] = e;
+      }
+    }
+    return map;
+  })();
+  const taskEmployeeLabel = (emp, idToEmployeeMap = employeeById) => {
+    if (emp == null) return '—';
+    let idStr = null;
+    if (typeof emp === 'object') {
+      idStr = emp?.$oid ?? emp?.id ?? emp?._id ?? toId(emp);
+      if (idStr != null) {
+        const found = idToEmployeeMap?.[String(idStr)];
+        if (found) return empLabel(found);
+      }
+      if (emp?.name || emp?.email || emp?.userName) return empLabel(emp);
+      if (idStr != null) return String(idStr);
+      return '—';
+    }
+    idStr = String(emp);
+    const found = idToEmployeeMap?.[idStr];
+    if (found) return empLabel(found);
+    return idStr;
+  };
+  const toDateInputValue = (v) => {
+    if (v == null || v === '') return '';
+    if (typeof v === 'string' && v.length >= 10) return v.slice(0, 10);
+    try {
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toISOString().slice(0, 10);
+    } catch {
+      return '';
+    }
+  };
+
+  const toTimeInputValue = (v) => {
+    if (v == null || v === '') return '09:00';
+    if (typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v)) {
+      const [h, m] = v.split(':').map(Number);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    try {
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return '09:00';
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    } catch {
+      return '09:00';
+    }
+  };
+
+  const buildDueISO = (dateStr, timeStr) => {
+    if (!dateStr || dateStr.length < 10) return null;
+    const parts = dateStr.slice(0, 10).split('-').map(Number);
+    if (parts.length < 3) return null;
+    const [y, mo, day] = parts;
+    const [h, m] = (timeStr || '09:00').split(':').map(Number);
+    const d = new Date(y, mo - 1, day, isNaN(h) ? 9 : h, isNaN(m) ? 0 : m, 0, 0);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  };
+
+  const checkEmployeeConflict = useCallback(async (employeeId, dueISO) => {
+    if (!employeeId || !dueISO) return null;
+    const due = new Date(dueISO);
+    if (Number.isNaN(due.getTime())) return null;
+    const dayStart = new Date(due);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(due);
+    dayEnd.setHours(23, 59, 59, 999);
+    try {
+      const res = await appointmentService.getAllAppointments({
+        limit: 200,
+        startDate: dayStart.toISOString(),
+        endDate: dayEnd.toISOString(),
+      });
+      const list = res.data?.appointments || [];
+      const empIdStr = String(toId(employeeId));
+      const dueDayStr = due.toDateString();
+      const sameDay = list.filter((a) => {
+        const aEmp = toId(a.employeeId || a.employee);
+        if (!aEmp || String(aEmp) !== empIdStr) return false;
+        const start = a.startTime ? (a.startTime instanceof Date ? a.startTime : new Date(a.startTime)) : null;
+        return start && start.toDateString() === dueDayStr;
+      });
+      const conflict = sameDay.find((a) => {
+        const start = a.startTime ? (a.startTime instanceof Date ? a.startTime : new Date(a.startTime)) : null;
+        const end = a.endTime ? (a.endTime instanceof Date ? a.endTime : new Date(a.endTime)) : null;
+        if (!start || !end) return false;
+        return due.getTime() >= start.getTime() && due.getTime() < end.getTime();
+      });
+      return conflict || null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const handleSubmit = async (evt) => {
     evt.preventDefault();
-    await run(async () => {
-      await taskService.assignTask(form);
-      toast.success('Task Assigned!');
-      setModalOpen(false);
-      load();
-    });
+    setConflictError(null);
+    const dueISO = buildDueISO(form.dueDate, form.dueTime);
+    if (!dueISO) {
+      toast.error('Enter a valid due date and time.');
+      return;
+    }
+    const conflict = await checkEmployeeConflict(form.employeeId, dueISO);
+    if (conflict) {
+      const msg = 'هذا الموظف لديه معاينة/معاد في نفس التوقيت. اختر وقتاً آخر.';
+      setConflictError(msg);
+      toast.warning('لم تُضف المهمة — تعارض مع معاينة.');
+      notificationService.create({ title: 'لم تُضف المهمة — تعارض', message: msg, type: 'warning' }).catch(() => {});
+      return;
+    }
+    const payload = {
+      employeeId: form.employeeId,
+      propertyId: form.propertyId || undefined,
+      title: form.title,
+      description: form.description || undefined,
+      dueDate: dueISO,
+    };
+    try {
+      await run(async () => {
+        if (editingTaskId) {
+          await taskService.updateAssignedTask(editingTaskId, payload);
+          toast.success('Task updated!');
+        } else {
+          await taskService.assignTask(payload);
+          toast.success('Task Assigned!');
+        }
+        setModalOpen(false);
+        setEditingTaskId(null);
+        load();
+      });
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'لم تُضف المهمة.';
+      toast.error(msg);
+      notificationService.create({ title: 'لم تُضف المهمة', message: msg, type: 'error' }).catch(() => {});
+    }
   };
 
   const setF = (k, v) => setFormState((f) => ({ ...f, [k]: v }));
@@ -1611,22 +2043,32 @@ export const TasksPage = () => {
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Task Info</th>
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Due</th>
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
                 <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
-                  {tasks.map((t) => (
-                    <motion.tr key={t.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors">
-                      <td className="px-6 py-4 font-bold text-slate-700 text-sm">{t.employeeId || '—'}</td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-bold text-slate-800">{t.title}</p>
-                        <p className="text-xs text-slate-500 mt-1">{t.description}</p>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-bold text-red-500">{t.formattedDueDate}</td>
-                      <td className="px-6 py-4">
-                        <Badge color="yellow" className="!rounded-lg text-[10px]">{t.status}</Badge>
-                      </td>
-                    </motion.tr>
-                  ))}
+                  {tasks.map((t) => {
+                    const due = t.dueDate ? (t.dueDate instanceof Date ? t.dueDate : new Date(t.dueDate)) : null;
+                    const dueStr = due && !Number.isNaN(due.getTime())
+                      ? `${due.toLocaleDateString('en-EG')} ${due.toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit' })}`
+                      : (t.formattedDueDate || '—');
+                    return (
+                      <motion.tr key={t.id || t._id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors">
+                        <td className="px-6 py-4 font-bold text-slate-700 text-sm">{taskEmployeeLabel(t.employeeId || t)}</td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-bold text-slate-800">{t.title}</p>
+                          <p className="text-xs text-slate-500 mt-1">{t.description}</p>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-blue-500">{dueStr}</td>
+                        <td className="px-6 py-4">
+                          <Badge color="yellow" className="!rounded-lg text-[10px]">{t.status}</Badge>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Button size="sm" variant="ghost" className="!text-blue !rounded-lg" onClick={() => openEdit(t)}>Edit</Button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </motion.tbody>
               </table>
             </div>
@@ -1634,17 +2076,22 @@ export const TasksPage = () => {
         </div>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Assign Task" size="lg">
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); setConflictError(null); }} title={editingTaskId ? 'Edit Task' : 'Assign Task'} size="lg">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {conflictError && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm font-medium">
+              {conflictError}
+            </div>
+          )}
           <Input label="Title" value={form.title} onChange={(e) => setF('title', e.target.value)} required />
           <Input label="Description" value={form.description} onChange={(e) => setF('description', e.target.value)} required />
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Employee (search then select)</label>
             <input type="text" placeholder="Search employee..." className="w-full mb-2 px-4 py-2 border rounded-xl text-sm" value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} />
-            <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={form.employeeId} onChange={(e) => setF('employeeId', e.target.value)} required>
+            <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={typeof form.employeeId === 'string' ? form.employeeId : toId(form.employeeId) || ''} onChange={(e) => { setF('employeeId', e.target.value); setConflictError(null); }} required>
               <option value="">— Select employee —</option>
               {filteredEmps.map((e) => (
-                <option key={e.id} value={e.id}>{empLabel(e)} {e?.jobTitle ? ` (${e.jobTitle})` : ''}</option>
+                <option key={toId(e) || e.id} value={toId(e) || e.id}>{empLabel(e)} {e?.jobTitle ? ` (${e.jobTitle})` : ''}</option>
               ))}
             </select>
           </div>
@@ -1658,10 +2105,16 @@ export const TasksPage = () => {
               ))}
             </select>
           </div>
-          <Input label="Due Date" type="date" value={form.dueDate} onChange={(e) => setF('dueDate', e.target.value)} required />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Due Date" type="date" value={toDateInputValue(form.dueDate)} onChange={(e) => { setF('dueDate', e.target.value); setConflictError(null); }} required />
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Due Time</label>
+              <input type="time" className="w-full px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={toTimeInputValue(form.dueTime)} onChange={(e) => { setF('dueTime', e.target.value); setConflictError(null); }} />
+            </div>
+          </div>
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={loading}>Assign Task</Button>
+            <Button type="submit" loading={loading}>{editingTaskId ? 'Update Task' : 'Assign Task'}</Button>
           </div>
         </form>
       </Modal>
@@ -1733,6 +2186,7 @@ export const FinancialsPage = () => {
   const [installments, setInstallments] = useState([]);
   const [sales, setSales] = useState([]);
   const [salesTotal, setSalesTotal] = useState(0);
+  const [rentTotal, setRentTotal] = useState(0);
   const [payments, setPayments] = useState([]);
   const [totalReceived, setTotalReceived] = useState(0);
   const [transactionOptions, setTransactionOptions] = useState([]);
@@ -1742,9 +2196,11 @@ export const FinancialsPage = () => {
   const [transSearch, setTransSearch] = useState('');
   const [genTransSearch, setGenTransSearch] = useState('');
   const [payForInstallment, setPayForInstallment] = useState(null);
+  const [expandedInstallmentTxIds, setExpandedInstallmentTxIds] = useState(new Set());
 
   const [form, setFormState] = useState({ transactionId: '', installmentId: '', amount: '', paymentMethod: 'cash', notes: '' });
-  const [genForm, setGenForm] = useState({ transactionId: '', startDate: '', numberOfInstallments: 5, frequency: 'monthly' });
+  const [genForm, setGenForm] = useState({ transactionId: '', startDate: '', numberOfInstallments: 5, frequency: 'monthly', replaceExisting: false });
+  const [existingGenInstallmentsFin, setExistingGenInstallmentsFin] = useState([]);
 
   const { loading, run } = useAsync();
   const pagination = usePagination(1, 10);
@@ -1758,9 +2214,12 @@ export const FinancialsPage = () => {
       ]);
       const allTx = txRes.data?.transactions || [];
       const saleList = allTx.filter((t) => (t.transactionType || '').toLowerCase() === 'sale');
+      const rentList = allTx.filter((t) => (t.transactionType || '').toLowerCase() === 'rent');
       const totalAmount = saleList.reduce((sum, t) => sum + (Number(t.totalAmount) || 0), 0);
+      const rentAmount = rentList.reduce((sum, t) => sum + (Number(t.totalAmount) || 0), 0);
       setSales(saleList);
       setSalesTotal(totalAmount);
+      setRentTotal(rentAmount);
       setTransactionOptions(allTx);
       setInstallments(instRes.data?.installments || []);
       const payList = payRes.data?.payments || [];
@@ -1796,12 +2255,28 @@ export const FinancialsPage = () => {
   useEffect(() => { if (modalOpen || genModalOpen) loadTransactionOptions(); }, [modalOpen, genModalOpen]);
   useEffect(() => { loadInstallmentsForTransaction(form.transactionId); }, [form.transactionId]);
   useEffect(() => {
+    if (!genModalOpen || !genForm.transactionId) { setExistingGenInstallmentsFin([]); return; }
+    const tid = genForm.transactionId;
+    installmentService.getInstallments({ transactionId: tid, limit: 200 })
+      .then((r) => {
+        const list = r.data?.installments || [];
+        const filtered = list.filter((i) => toId(i.transactionId) === tid || toId(i.transactionId) === String(tid));
+        setExistingGenInstallmentsFin(filtered);
+        if (filtered.length > 0) {
+          const sorted = filtered.slice().sort((a, b) => (a.installmentNo ?? 0) - (b.installmentNo ?? 0));
+          const firstDue = sorted[0]?.dueDate;
+          if (firstDue) setGenForm((f) => ({ ...f, startDate: new Date(firstDue).toISOString().slice(0, 10) }));
+        }
+      })
+      .catch(() => setExistingGenInstallmentsFin([]));
+  }, [genModalOpen, genForm.transactionId]);
+  useEffect(() => {
     if (payForInstallment) {
       setFormState((f) => ({
         ...f,
         transactionId: payForInstallment.transactionId || '',
         installmentId: payForInstallment.id || '',
-        amount: String(payForInstallment.amount ?? ''),
+        amount: String(roundMoney(payForInstallment.amount ?? 0)),
       }));
       setModalOpen(true);
       setPayForInstallment(null);
@@ -1811,7 +2286,7 @@ export const FinancialsPage = () => {
   const handleSubmit = async (evt) => {
     evt.preventDefault();
     await run(async () => {
-      await paymentService.recordPayment(form);
+      await paymentService.recordPayment({ ...form, amount: roundMoney(Number(form.amount)) });
       toast.success('Payment recorded — amount will appear in Financials.');
       setModalOpen(false);
       setFormState({ transactionId: '', installmentId: '', amount: '', paymentMethod: 'cash', notes: '' });
@@ -1833,12 +2308,65 @@ export const FinancialsPage = () => {
   });
   const nextDueGlobal = sortedInstallments.find((i) => (i.status || '').toLowerCase() === 'due');
 
+  const groupedInstallmentsByTx = (() => {
+    const map = {};
+    for (const i of installmentsWithTx) {
+      const txId = toId(i.transactionId) || 'unknown';
+      if (!map[txId]) map[txId] = { transaction: i.transaction, installments: [] };
+      map[txId].installments.push(i);
+    }
+    for (const key of Object.keys(map)) {
+      const list = map[key].installments;
+      const due = list.filter((x) => (x.status || '').toLowerCase() === 'due').sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+      const paid = list.filter((x) => (x.status || '').toLowerCase() === 'paid').sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+      map[key].installments = [...due, ...paid];
+    }
+    return map;
+  })();
+
   const handleGenerate = async (evt) => {
     evt.preventDefault();
+    if (existingGenInstallmentsFin.length > 0 && !genForm.replaceExisting) {
+      toast.error('This transaction already has installments. Use "Update dates only" or check "Replace existing installments".');
+      return;
+    }
     await run(async () => {
-      await installmentService.generateInstallments(genForm);
-      toast.success('Installments generated successfully!');
+      await installmentService.generateInstallments({
+        transactionId: genForm.transactionId,
+        startDate: genForm.startDate,
+        numberOfInstallments: genForm.numberOfInstallments,
+        frequency: genForm.frequency,
+        replaceExisting: !!genForm.replaceExisting,
+      });
+      toast.success(existingGenInstallmentsFin.length > 0 ? 'Installments updated (previous schedule replaced).' : 'Installments generated successfully!');
       setGenModalOpen(false);
+      setGenForm((f) => ({ ...f, transactionId: '', replaceExisting: false }));
+      setExistingGenInstallmentsFin([]);
+      load();
+    });
+  };
+
+  const handleUpdateDatesOnlyFin = async () => {
+    if (existingGenInstallmentsFin.length === 0) return;
+    const sorted = existingGenInstallmentsFin.slice().sort((a, b) => (a.installmentNo ?? 0) - (b.installmentNo ?? 0));
+    const firstDue = sorted[0]?.dueDate;
+    if (!firstDue) { toast.error('Could not read current dates.'); return; }
+    const newStart = new Date(genForm.startDate + 'T00:00:00');
+    const oldFirst = new Date(firstDue);
+    if (Number.isNaN(newStart.getTime()) || Number.isNaN(oldFirst.getTime())) { toast.error('Invalid date.'); return; }
+    const deltaMs = newStart.getTime() - oldFirst.getTime();
+    await run(async () => {
+      for (const inst of sorted) {
+        const id = toId(inst) || inst.id || inst._id;
+        if (!id) continue;
+        const oldDue = new Date(inst.dueDate);
+        const newDue = new Date(oldDue.getTime() + deltaMs);
+        await installmentService.updateInstallment(id, { dueDate: newDue.toISOString() });
+      }
+      toast.success('تم تعديل تواريخ الأقساط فقط (لم تُضف أقساط جديدة).');
+      setGenModalOpen(false);
+      setGenForm((f) => ({ ...f, transactionId: '', replaceExisting: false }));
+      setExistingGenInstallmentsFin([]);
       load();
     });
   };
@@ -1883,8 +2411,8 @@ export const FinancialsPage = () => {
                 <p className="text-2xl font-black text-slate-800 mt-1">{sales.length}</p>
               </div>
               <div className="p-4 bg-blue/5 rounded-2xl border border-blue/20">
-                <p className="text-[11px] font-bold text-blue uppercase tracking-wider">Average Deal</p>
-                <p className="text-2xl font-black text-slate-800 mt-1">{sales.length ? `EGP ${new Intl.NumberFormat('en-EG').format(Math.round(salesTotal / sales.length))}` : '—'}</p>
+                <p className="text-[11px] font-bold text-blue uppercase tracking-wider">إجمالي الإيجار (Total Rent)</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">EGP {new Intl.NumberFormat('en-EG').format(rentTotal)}</p>
               </div>
             </div>
             {loading ? (
@@ -1916,57 +2444,91 @@ export const FinancialsPage = () => {
           </div>
         </div>
 
-        {/* Scheduled installments — only real money when paid via Record Payment */}
+        {/* Scheduled installments — grouped by property; click to expand (due first, then paid) */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-50">
             <h3 className="text-lg font-bold text-slate-800">Scheduled installments</h3>
-            <p className="text-sm text-slate-500 mt-1">Installments appear here; they are recorded in Financials only when paid (Record Payment).</p>
+            <p className="text-sm text-slate-500 mt-1">Grouped by property. Click a property to see installments (due first, then paid). Record in Financials via Record Payment.</p>
           </div>
-          <div className="overflow-x-auto">
+          <div className="divide-y divide-slate-100">
             {sortedInstallments.length === 0 ? (
               <div className="p-12 text-center text-slate-500">
                 <p>No installments yet. Generate installments from a transaction (Transactions → Set installments).</p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50/50">
-                  <tr>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Property / Transaction</th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">#</th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Due date</th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {sortedInstallments.map((i) => {
-                    const isNextDue = (i.status || '').toLowerCase() === 'due' && nextDueGlobal?.id === i.id;
-                    return (
-                      <tr key={i.id || i._id} className={isNextDue ? 'bg-amber-50/50' : ''}>
-                        <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                          {i.transaction?.property?.name || i.transaction?.property?.title || i.transaction?.formattedTotal || toId(i.transactionId) || '—'}
-                        </td>
-                        <td className="px-6 py-4 text-sm">{i.installmentNo ?? '—'}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-800">EGP {new Intl.NumberFormat('en-EG').format(i.amount || 0)}</td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{i.dueDate ? new Date(i.dueDate).toLocaleDateString('en-EG') : '—'}</td>
-                        <td className="px-6 py-4">
-                          <Badge color={(i.status || '').toLowerCase() === 'paid' ? 'green' : (i.status || '').toLowerCase() === 'overdue' ? 'red' : 'yellow'} className="!rounded-lg text-[10px]">
-                            {(i.status || 'due').toLowerCase()}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {(i.status || '').toLowerCase() === 'due' && (
-                            <Button size="sm" variant="outline" className="!rounded-lg" onClick={() => setPayForInstallment({ id: toId(i), transactionId: toId(i.transactionId), amount: i.amount })}>
-                              Pay
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              Object.entries(groupedInstallmentsByTx).map(([txId, { transaction, installments: instList }]) => {
+                const label = transaction?.property?.name || transaction?.property?.title || transaction?.formattedTotal || txId || '—';
+                const dueCount = instList.filter((i) => (i.status || '').toLowerCase() === 'due').length;
+                const paidCount = instList.filter((i) => (i.status || '').toLowerCase() === 'paid').length;
+                const isExpanded = expandedInstallmentTxIds.has(txId);
+                const toggle = () => {
+                  setExpandedInstallmentTxIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(txId)) next.delete(txId);
+                    else next.add(txId);
+                    return next;
+                  });
+                };
+                return (
+                  <div key={txId} className="border-b border-slate-100 last:border-b-0">
+                    <button
+                      type="button"
+                      onClick={toggle}
+                      className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left hover:bg-slate-50/70 transition-colors"
+                    >
+                      <span className="font-semibold text-slate-800">{label}</span>
+                      <span className="flex items-center gap-3">
+                        {dueCount > 0 && (
+                          <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">{dueCount} due</span>
+                        )}
+                        {paidCount > 0 && (
+                          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg">{paidCount} paid</span>
+                        )}
+                        <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div className="px-6 pb-6 pt-0">
+                        <table className="w-full text-left border-collapse rounded-xl border border-slate-100 overflow-hidden">
+                          <thead className="bg-slate-50/80">
+                            <tr>
+                              <th className="px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">#</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Amount</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Due date</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {instList.map((i) => {
+                              const isNextDue = (i.status || '').toLowerCase() === 'due' && nextDueGlobal?.id === i.id;
+                              return (
+                                <tr key={i.id || i._id} className={isNextDue ? 'bg-amber-50/50' : 'hover:bg-slate-50/50'}>
+                                  <td className="px-4 py-3 text-sm text-slate-700">#{i.installmentNo ?? '—'}</td>
+                                  <td className="px-4 py-3 font-semibold text-slate-800">EGP {new Intl.NumberFormat('en-EG').format(i.amount || 0)}</td>
+                                  <td className="px-4 py-3 text-sm text-slate-600">{i.dueDate ? new Date(i.dueDate).toLocaleDateString('en-EG') : '—'}</td>
+                                  <td className="px-4 py-3">
+                                    <Badge color={(i.status || '').toLowerCase() === 'paid' ? 'green' : (i.status || '').toLowerCase() === 'overdue' ? 'red' : 'yellow'} className="!rounded-lg text-[10px]">
+                                      {(i.status || 'due').toLowerCase()}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    {(i.status || '').toLowerCase() === 'due' && (
+                                      <Button size="sm" variant="outline" className="!rounded-lg" onClick={() => setPayForInstallment({ id: toId(i), transactionId: toId(i.transactionId), amount: i.amount })}>
+                                        Pay
+                                      </Button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -2023,7 +2585,7 @@ export const FinancialsPage = () => {
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Apply to installment (optional — auto: next due)</label>
-            <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={form.installmentId} onChange={(e) => { const opt = installmentsForSelectedTx.find((i) => (i.id || i._id) === e.target.value); setF('installmentId', e.target.value); if (opt) setF('amount', String(opt.amount ?? '')); }}>
+            <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={form.installmentId} onChange={(e) => { const opt = installmentsForSelectedTx.find((i) => (i.id || i._id) === e.target.value); setF('installmentId', e.target.value); if (opt) setF('amount', String(roundMoney(opt.amount ?? 0))); }}>
               <option value="">— No specific installment —</option>
               {installmentsForSelectedTx.filter((i) => (i.status || '').toLowerCase() === 'due').map((i) => (
                 <option key={i.id || i._id} value={i.id || i._id}>#{i.installmentNo ?? ''} — EGP {new Intl.NumberFormat('en-EG').format(i.amount || 0)} — due {i.dueDate ? new Date(i.dueDate).toLocaleDateString('en-EG') : ''}</option>
@@ -2038,9 +2600,9 @@ export const FinancialsPage = () => {
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Payment Method</label>
               <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={form.paymentMethod} onChange={(e) => setF('paymentMethod', e.target.value)}>
-                <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="cheque">Cheque</option>
+                {PAYMENT_METHODS.map((pm) => (
+                  <option key={pm.value} value={pm.value}>{pm.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -2052,7 +2614,7 @@ export const FinancialsPage = () => {
         </form>
       </Modal>
 
-      <Modal open={genModalOpen} onClose={() => setGenModalOpen(false)} title="Generate Installments">
+      <Modal open={genModalOpen} onClose={() => { setGenModalOpen(false); setExistingGenInstallmentsFin([]); }} title="Generate Installments">
         <form onSubmit={handleGenerate} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Transaction (search then select)</label>
@@ -2064,6 +2626,21 @@ export const FinancialsPage = () => {
               ))}
             </select>
           </div>
+          {existingGenInstallmentsFin.length > 0 && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+              <p className="text-sm font-semibold text-amber-800">This transaction already has {existingGenInstallmentsFin.length} installment(s).</p>
+              <p className="text-xs text-amber-700">Option 1 — تعديل التاريخ فقط: change the start date below and click &quot;Update dates only&quot;. Same installments, only dates change (no new ones).</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <input type="date" className="px-3 py-2 border border-amber-300 rounded-xl text-sm" value={genForm.startDate} onChange={(e) => setG('startDate', e.target.value)} />
+                <Button type="button" variant="outline" size="sm" onClick={handleUpdateDatesOnlyFin} loading={loading} className="!rounded-xl">Update dates only</Button>
+              </div>
+              <p className="text-xs text-amber-700 pt-1 border-t border-amber-200">Option 2 — Replace: check the box below and click Save to delete current installments and create a new schedule.</p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={!!genForm.replaceExisting} onChange={(e) => setG('replaceExisting', e.target.checked)} className="rounded border-amber-300" />
+                <span className="text-sm font-medium text-amber-800">Replace existing installments (delete + create new)</span>
+              </label>
+            </div>
+          )}
           <Input label="Start Date" type="date" value={genForm.startDate} onChange={(e) => setG('startDate', e.target.value)} required />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Number of Installments" type="number" value={genForm.numberOfInstallments} onChange={(e) => setG('numberOfInstallments', parseInt(e.target.value))} required />
