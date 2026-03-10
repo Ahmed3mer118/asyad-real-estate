@@ -1,0 +1,22 @@
+/* pages/dashboard/Overview/Overview.css */
+.overview-page { display: flex; flex-direction: column; gap: 28px; }
+
+.overview-charts {
+  display: grid; grid-template-columns: 1fr 380px; gap: 24px;
+}
+.overview-chart-card, .overview-pie-card { min-height: 300px; }
+.overview-chart-header { margin-bottom: 20px; }
+
+.overview-tables {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+}
+.overview-view-all {
+  font-size: 13px; color: var(--blue); font-weight: 700;
+  background: none; border: none; cursor: pointer;
+}
+.overview-view-all:hover { text-decoration: underline; }
+
+@media (max-width: 1200px) {
+  .overview-charts { grid-template-columns: 1fr; }
+  .overview-tables  { grid-template-columns: 1fr; }
+}

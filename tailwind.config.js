@@ -1,0 +1,73 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        primary:     '#0289fb',
+        blue:        '#0289fb',
+        'blue-dark': '#0070d4',
+        'blue-light':'#e6f2fe',
+        dark:        '#1a1a1a',
+        dark2:       '#111111',
+        gray:        '#7d7d7d',
+        'gray-light':'#f9fafb',
+        'gray-mid':  '#f1f5f9',
+        border:      '#e0e0e0',
+        green:       '#22c55e',
+        yellow:      '#f59e0b',
+        red:         '#ef4444',
+        whatsapp:    '#25d366',
+        'dashboard-sidebar':   '#0f172a',
+        'dashboard-page':     '#f8fafc',
+        'dashboard-card':     '#ffffff',
+      },
+      fontFamily: {
+        display: ['"Playfair Display"', 'Georgia', 'serif'],
+        body:    ['"DM Sans"', 'system-ui', 'sans-serif'],
+      },
+      borderRadius: {
+        sm:   '8px',
+        md:   '12px',
+        lg:   '16px',
+        xl:   '24px',
+        pill: '999px',
+      },
+      boxShadow: {
+        sm:   '0 1px 4px rgba(0,0,0,0.06)',
+        md:   '0 4px 20px rgba(0,0,0,0.08)',
+        lg:   '0 12px 48px rgba(0,0,0,0.12)',
+        blue: '0 4px 20px rgba(2,137,251,0.25)',
+      },
+      keyframes: {
+        fadeIn:  { from: { opacity: 0 }, to: { opacity: 1 } },
+        fadeUp:  { from: { opacity: 0, transform: 'translateY(24px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+        fadeDown:{ from: { opacity: 0, transform: 'translateY(-12px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+        scaleIn: { from: { opacity: 0, transform: 'scale(0.94)' }, to: { opacity: 1, transform: 'scale(1)' } },
+        pulse:   { '0%,100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.08)' } },
+        spin:    { to: { transform: 'rotate(360deg)' } },
+        shimmer: { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
+        float:   { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } },
+        slideInRight: { from: { opacity: 0, transform: 'translateX(20px)' }, to: { opacity: 1, transform: 'translateX(0)' } },
+      },
+      animation: {
+        'fade-in':    'fadeIn 0.4s ease both',
+        'fade-up':    'fadeUp 0.5s ease both',
+        'fade-down':  'fadeDown 0.3s ease both',
+        'scale-in':   'scaleIn 0.35s ease both',
+        'pulse-once': 'pulse 0.35s ease',
+        'spin-fast':  'spin 0.7s linear infinite',
+        'shimmer':    'shimmer 1.4s infinite',
+        'float':      'float 3s ease-in-out infinite',
+        'slide-in-right': 'slideInRight 0.3s ease both',
+      },
+      transitionTimingFunction: {
+        smooth: 'cubic-bezier(0.4,0,0.2,1)',
+      },
+      maxWidth: {
+        '8xl': '1440px',
+      },
+    },
+  },
+  plugins: [],
+};
