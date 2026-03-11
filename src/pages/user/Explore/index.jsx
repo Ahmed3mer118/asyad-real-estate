@@ -95,10 +95,10 @@ const ExplorePage = () => {
 
         {/* ── TOP BAR ── */}
         <div className="bg-white border-b border-border sticky top-[76px] z-[100] shadow-sm">
-          <div className="max-w-8xl mx-auto px-10 py-4 flex items-center gap-4 flex-wrap max-[600px]:px-5">
+          <div className="max-w-8xl mx-auto px-4 sm:px-6 md:px-10 py-4 flex items-center gap-3 sm:gap-4 flex-wrap">
 
             {/* Search */}
-            <div className="flex-1 min-w-[240px] flex items-center gap-[10px] bg-gray-light rounded-pill
+            <div className="flex-1 min-w-0 sm:min-w-[200px] md:min-w-[240px] flex items-center gap-2 sm:gap-[10px] bg-gray-light rounded-pill
               px-[18px] py-[10px] border-[1.5px] border-border transition-all duration-200
               focus-within:border-blue focus-within:bg-white">
               <span className="text-[16px] text-gray">🔍</span>
@@ -138,7 +138,7 @@ const ExplorePage = () => {
 
           {/* ── Advanced filters panel ── */}
           {showFilters && (
-            <div className="border-t border-border px-10 py-6 bg-gray-light animate-fade-down max-[600px]:px-5">
+            <div className="border-t border-border px-4 sm:px-6 md:px-10 py-4 sm:py-6 bg-gray-light animate-fade-down">
               <div className="flex gap-8 flex-wrap items-start mb-4">
 
                 {/* Property Type */}

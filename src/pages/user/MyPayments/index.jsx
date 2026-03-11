@@ -186,7 +186,7 @@ const MyPaymentsPage = () => {
           <div className="flex justify-center py-24"><Spinner size="lg" /></div>
         ) : (
           <div className="space-y-8">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200">
                 <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Original Total</p>
                 <p className="text-xl font-black text-slate-800 mt-1">EGP {new Intl.NumberFormat('en-EG').format(originalTotal)}</p>
@@ -261,8 +261,8 @@ const MyPaymentsPage = () => {
                             exit={{ opacity: 0, height: 0 }}
                             className="overflow-hidden"
                           >
-                            <div className="px-5 pb-5 pt-0">
-                              <table className="w-full text-left border-collapse rounded-xl border border-slate-100 overflow-hidden">
+                            <div className="px-3 sm:px-5 pb-5 pt-0 overflow-x-auto">
+                              <table className="w-full min-w-[320px] text-left border-collapse rounded-xl border border-slate-100 overflow-hidden">
                                 <thead className="bg-slate-50/80">
                                   <tr>
                                     <th className="px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">#</th>

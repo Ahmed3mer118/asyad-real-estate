@@ -3,6 +3,7 @@ import axios from 'axios';
 
 const TOKEN_KEY = 'asyad_token';
 const USER_KEY = 'asyad_user';
+// In production (e.g. Vercel) set VITE_API_URL to your deployed backend URL — never use localhost from a public site.
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 class ApiService {
@@ -23,7 +24,8 @@ class ApiService {
     this.client.interceptors.response.use(
       (res) => res,
       (err) => {
-        if (err.response?.status === 401) {
+        const isLoginRequest = err.config?.url?.includes('/auth/login');
+        if (err.response?.status === 401 && !isLoginRequest) {
           localStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(USER_KEY);
           window.location.href = '/login';
