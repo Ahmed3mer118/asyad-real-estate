@@ -23,8 +23,8 @@ const AuthLayout = ({ quote, sub, children }) => (
       </div>
     </div>
 
-    {/* Right panel — full width on mobile, scrollable */}
-    <div className="w-full md:w-1/2 flex items-center justify-center px-4 sm:px-6 md:px-10 py-6 sm:py-8 md:py-10 bg-white overflow-y-auto min-h-[60vh] md:min-h-0">
+    {/* Right panel — full width on mobile (page scroll only, no inner scroll) */}
+    <div className="w-full md:w-1/2 flex items-center justify-center px-4 sm:px-6 md:px-10 py-6 sm:py-8 md:py-10 bg-white min-h-[60vh] md:min-h-0">
       <div className="w-full max-w-[460px] py-4">{children}</div>
     </div>
   </div>

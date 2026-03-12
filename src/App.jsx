@@ -1,5 +1,5 @@
 // src/App.jsx — auth via token + role (no Context), redirect by role like Courses_platform
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { getToken, getRole } from './utils/authUtils.js';
 import { Spinner } from './components/common/index.jsx';
@@ -26,6 +26,7 @@ const TasksPage = lazy(() => import('./pages/dashboard/dashboardPages.jsx').then
 const EvaluationsPage = lazy(() => import('./pages/dashboard/dashboardPages.jsx').then(m => ({ default: m.EvaluationsPage })));
 const FinancialsPage = lazy(() => import('./pages/dashboard/dashboardPages.jsx').then(m => ({ default: m.FinancialsPage })));
 const ReportsPage = lazy(() => import('./pages/dashboard/Reports/index.jsx'));
+const FavoritesReportPage = lazy(() => import('./pages/dashboard/FavoritesReport/index.jsx'));
 const PropertyDetailPage = lazy(() => import('./pages/user/PropertyDetail/index.jsx'));
 const MyAppointmentsPage = lazy(() => import('./pages/user/MyAppointments/index.jsx'));
 const MyPaymentsPage = lazy(() => import('./pages/user/MyPayments/index.jsx'));
@@ -71,9 +72,22 @@ const SuspenseFallback = () => (
   </div>
 );
 
+/* On route change: scroll to top */
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.documentElement.style.scrollBehavior = 'smooth';
+  }, [pathname]);
+  return null;
+};
+
 /* ── APP ── */
 const App = () => (
   <BrowserRouter>
+      <ScrollToTop />
       <Suspense fallback={<SuspenseFallback />}>
         <Routes>
           {/* ── USER ROUTES ── */}
@@ -110,6 +124,7 @@ const App = () => (
           <Route path="/dashboard/evaluations" element={<PrivateRoute allowedRoles={['admin']}><EvaluationsPage /></PrivateRoute>} />
           <Route path="/dashboard/financials" element={<PrivateRoute allowedRoles={['admin']}><FinancialsPage /></PrivateRoute>} />
           <Route path="/dashboard/reports" element={<PrivateRoute allowedRoles={['admin']}><ReportsPage /></PrivateRoute>} />
+          <Route path="/dashboard/favorites" element={<PrivateRoute allowedRoles={['admin']}><FavoritesReportPage /></PrivateRoute>} />
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />

@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { icon: '🧾', label: 'Transactions', path: '/dashboard/transactions' },
   { icon: '💰', label: 'Financials', path: '/dashboard/financials' },
   { icon: '📈', label: 'Reports', path: '/dashboard/reports' },
+  { icon: '❤️', label: 'Favorites', path: '/dashboard/favorites' },
   { icon: '📋', label: 'Tasks', path: '/dashboard/tasks' },
   { icon: '⭐', label: 'Evaluations', path: '/dashboard/evaluations' },
   { icon: '🔔', label: 'Notifications', path: '/dashboard/notifications' },
@@ -83,7 +84,7 @@ const DashboardLayout = ({ children }) => {
           </button>
         </div>
 
-        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)] scrollbar-hide">
+        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)] dashboard-sidebar-nav">
           {NAV_ITEMS.map(({ icon, label, path }) => (
             <Link
               key={path}

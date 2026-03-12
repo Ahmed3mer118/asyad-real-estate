@@ -501,6 +501,30 @@ class FavoriteService extends ApiService {
   async remove(propertyId) {
     await this.client.delete(`/favorites/${propertyId}`);
   }
+
+  /** Most popular by favorites count — query: city, limit */
+  async getPopularByFavorites(params = {}) {
+    const { data } = await this.client.get('/favorites/popular', { params });
+    return { data: data?.data ?? [] };
+  }
+
+  /** Users who kept a property in favorites for a long time — query: days (default 30) */
+  async getLongStandingFavorites(params = {}) {
+    const { data } = await this.client.get('/favorites/long-standing', { params });
+    return { data: data?.data ?? [] };
+  }
+
+  /** Favorite stats for a property: currentFavoriteCount, totalAdded, totalRemoved */
+  async getPropertyFavoriteStats(propertyId) {
+    const { data } = await this.client.get(`/favorites/stats/${propertyId}`);
+    return { data: data?.data ?? null };
+  }
+
+  /** Users who currently have this property in favorites (admin) */
+  async getFavoritedByUsers(propertyId) {
+    const { data } = await this.client.get(`/favorites/favorited-by/${propertyId}`);
+    return { data: data?.data ?? [] };
+  }
 }
 
 const favoriteService = new FavoriteService();

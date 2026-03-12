@@ -18,9 +18,18 @@ const Navbar = ({ transparent = false }) => {
   const [dropOpen, setDropOpen] = useState(false);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 40);
-    window.addEventListener('scroll', handler);
-    return () => window.removeEventListener('scroll', handler);
+    const handler = () => {
+      const y = document.body.scrollTop ?? document.documentElement.scrollTop ?? window.scrollY ?? window.pageYOffset ?? 0;
+      setScrolled(y > 40);
+    };
+    handler();
+    const body = document.body;
+    window.addEventListener('scroll', handler, { passive: true });
+    body.addEventListener('scroll', handler, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handler);
+      body.removeEventListener('scroll', handler);
+    };
   }, []);
 
   useEffect(() => { setMenuOpen(false); }, [location]);
@@ -65,7 +74,7 @@ const Navbar = ({ transparent = false }) => {
                 to={to}
                 className={`nav-link-underline text-[14px] font-medium transition-colors duration-200
                   ${isSolid
-                    ? active ? 'text-blue font-semibold active' : 'text-gray hover:text-dark'
+                    ? active ? 'text-blue font-semibold active' : 'text-dark hover:text-blue'
                     : active ? 'text-white active' : 'text-white/80 hover:text-white'
                   } ${active ? 'active' : ''}`}
               >

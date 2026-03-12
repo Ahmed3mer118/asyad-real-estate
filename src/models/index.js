@@ -138,7 +138,8 @@ export class Notification {
   }
 }
 
-// models/Employee.js — backend: userId (ref User), jobTitle, department, salary, commissionRate, hireDate, employmentType, yearsOfExperience, averageRating, totalSalesAmount, totalDeals
+// models/Employee.js — backend: userId, jobTitle, department, salary, commissionRate, currentCommissionRate, hireDate, ...
+// currentCommissionRate = current rate for new operations only. commissionRate kept for backward compatibility.
 export class Employee {
   constructor(data = {}) {
     this.id = data._id || data.id || null;
@@ -147,6 +148,7 @@ export class Employee {
     this.department = data.department || '';
     this.salary = data.salary ?? 0;
     this.commissionRate = data.commissionRate ?? 0;
+    this.currentCommissionRate = data.currentCommissionRate ?? data.commissionRate ?? 0;
     this.hireDate = data.hireDate ? new Date(data.hireDate) : null;
     this.employmentType = data.employmentType || ''; // full-time | part-time | contract | hybrid
     this.yearsOfExperience = data.yearsOfExperience ?? 0;
@@ -193,7 +195,9 @@ export class Transaction {
     this.transactionDate = data.transactionDate ? new Date(data.transactionDate) : null;
     this.totalAmount = data.totalAmount || 0;
     this.paidAmount = data.paidAmount || 0;
-    this.employeeCommissionRate = data.employeeCommissionRate ?? data.commissionRate ?? null;
+    // Employee commission rate at transaction completion — used for reports and past commissions
+    this.commissionRateAtTime = data.commissionRateAtTime ?? data.employeeCommissionRate ?? data.commissionRate ?? null;
+    this.employeeCommissionRate = this.commissionRateAtTime; // for dashboard display
     this.employeeCommissionAmount = data.employeeCommissionAmount ?? data.commissionAmount ?? null;
     this.createdAt = data.createdAt ? new Date(data.createdAt) : null;
   }

@@ -997,8 +997,6 @@ export const EmployeesPage = () => {
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [empDetail, setEmpDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  /** Frozen commission rate per employee per transaction — لا يتغير عند تعديل النسبة، النسبة الجديدة للصفقات الجديدة فقط */
-  const commissionRateSnapshotRef = useRef({});
   const { loading, run } = useAsync();
   const pagination = usePagination(1, 10);
 
@@ -1028,7 +1026,7 @@ export const EmployeesPage = () => {
       userId: toId(e.userId) || '',
       jobTitle: e.jobTitle || e.department || '',
       department: e.department || '',
-      commissionRate: e.commissionRate ?? '',
+      commissionRate: e.currentCommissionRate ?? e.commissionRate ?? '',
       phone: e.phone || '',
       salary: e.salary ?? '',
       hireDate: hire,
@@ -1042,10 +1040,11 @@ export const EmployeesPage = () => {
     evt.preventDefault();
     await run(async () => {
       if (editEmp) {
+        const rate = form.commissionRate !== '' ? Number(form.commissionRate) : undefined;
         await employeeService.updateEmployee(editEmp.id, {
           jobTitle: form.jobTitle,
           department: form.department,
-          commissionRate: form.commissionRate !== '' ? Number(form.commissionRate) : undefined,
+          ...(rate != null && { currentCommissionRate: rate, commissionRate: rate }),
           phone: form.phone || undefined,
           salary: form.salary !== '' ? Number(form.salary) : undefined,
           hireDate: form.hireDate || undefined,
@@ -1055,11 +1054,13 @@ export const EmployeesPage = () => {
         toast.success('Employee updated!');
       } else {
         if (!form.userId) { toast.error('Please select a user'); return; }
+        const rate = form.commissionRate !== '' ? Number(form.commissionRate) : 0;
         await employeeService.createEmployee({
           userId: form.userId,
           jobTitle: form.jobTitle || 'Staff',
           department: form.department || '',
-          commissionRate: form.commissionRate !== '' ? Number(form.commissionRate) : 0,
+          currentCommissionRate: rate,
+          commissionRate: rate,
           phone: form.phone || undefined,
           salary: form.salary !== '' ? Number(form.salary) : undefined,
           hireDate: form.hireDate || undefined,
@@ -1087,7 +1088,6 @@ export const EmployeesPage = () => {
   useEffect(() => {
     if (!selectedEmp) {
       setEmpDetail(null);
-      commissionRateSnapshotRef.current = {};
       return;
     }
     let cancelled = false;
@@ -1108,15 +1108,6 @@ export const EmployeesPage = () => {
         const txIds = (transactions || []).map((t) => toId(t.id));
         const installments = Array.isArray(allInstallments) ? allInstallments.filter((i) => txIds.includes(toId(i.transactionId))) : [];
         setEmpDetail({ employee: emp, transactions: transactions || [], tasks, installments });
-        const empId = selectedEmp.id;
-        const byEmp = commissionRateSnapshotRef.current[empId] || {};
-        transactions.forEach((t) => {
-          const tid = t.id ?? t._id;
-          if (tid != null && byEmp[tid] === undefined) {
-            byEmp[tid] = t.employeeCommissionRate ?? emp?.commissionRate ?? 0;
-          }
-        });
-        commissionRateSnapshotRef.current[empId] = byEmp;
       } catch (_) {
         if (!cancelled) setEmpDetail(null);
       } finally {
@@ -1185,8 +1176,8 @@ export const EmployeesPage = () => {
                       <td className="px-6 py-4">
                         <Badge color="purple" className="!rounded-lg text-[10px] font-bold">{e.jobTitle || e.department || '—'}</Badge>
                         {e.employmentType && <span className="text-[10px] text-slate-500 ml-1">({e.employmentType})</span>}
-                        {e.commissionRate != null && e.commissionRate > 0 && (
-                          <span className="text-[10px] text-slate-500 ml-1">{e.commissionRate}%</span>
+                        {(e.currentCommissionRate ?? e.commissionRate) != null && (e.currentCommissionRate ?? e.commissionRate) > 0 && (
+                          <span className="text-[10px] text-slate-500 ml-1" title="Commission rate for new deals only">{(e.currentCommissionRate ?? e.commissionRate)}%</span>
                         )}
                       </td>
                       <td className="px-6 py-4" onClick={(ev) => ev.stopPropagation()}>
@@ -1257,17 +1248,17 @@ export const EmployeesPage = () => {
             <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-end gap-2">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commission rate (%)</label>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commission rate (%) — for new deals only</label>
                   <input type="number" min="0" max="100" step="0.5" className="mt-1 w-24 px-3 py-2 border rounded-lg text-sm"
-                    defaultValue={empDetail.employee?.commissionRate ?? ''} id="emp-commission-input" />
+                    defaultValue={empDetail.employee?.currentCommissionRate ?? empDetail.employee?.commissionRate ?? ''} id="emp-commission-input" />
                 </div>
                 <Button size="sm" onClick={async () => {
                   const input = document.getElementById('emp-commission-input');
                   const v = input && input.value !== '' ? Number(input.value) : 0;
                   try {
-                    await employeeService.updateEmployee(selectedEmp.id, { commissionRate: v });
-                    toast.success('Commission rate updated');
-                    setEmpDetail((d) => ({ ...d, employee: { ...d.employee, commissionRate: v } }));
+                    await employeeService.updateEmployee(selectedEmp.id, { currentCommissionRate: v, commissionRate: v });
+                    toast.success('Commission rate updated (for new deals only)');
+                    setEmpDetail((d) => ({ ...d, employee: { ...d.employee, currentCommissionRate: v, commissionRate: v } }));
                     load();
                   } catch (_) { toast.error('Failed to update'); }
                 }}>Save</Button>
@@ -1276,7 +1267,7 @@ export const EmployeesPage = () => {
               <p className="text-sm text-slate-500">Deals: {empDetail.transactions?.length ?? empDetail.employee?.totalDeals ?? '—'}</p>
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-700 mb-2">صفقات المعاملات والعمولة — Transactions / Commission</h4>
+              <h4 className="text-sm font-bold text-slate-700 mb-2">Transactions & Commission</h4>
               {(empDetail.transactions || []).length === 0 ? (
                 <p className="text-slate-500 text-sm">None</p>
               ) : (
@@ -1284,16 +1275,14 @@ export const EmployeesPage = () => {
                   <table className="w-full text-left text-sm border-collapse">
                     <thead className="bg-slate-50">
                       <tr>
-                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider">الصفقة / Deal</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">نسبة العمولة %</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">العمولة (EGP)</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider">Deal</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">Commission %</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">Commission (EGP)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {(empDetail.transactions || []).map((t) => {
-                        const tid = t.id ?? t._id;
-                        const byEmp = selectedEmp?.id ? commissionRateSnapshotRef.current[selectedEmp.id] : {};
-                        const rate = t.employeeCommissionRate ?? byEmp[tid] ?? empDetail.employee?.commissionRate ?? 0;
+                        const rate = t.employeeCommissionRate ?? t.commissionRateAtTime ?? empDetail.employee?.currentCommissionRate ?? empDetail.employee?.commissionRate ?? 0;
                         const rateNum = Number(rate) || 0;
                         const totalNum = Number(t.totalAmount) || 0;
                         const commissionAmount = t.employeeCommissionAmount != null ? Number(t.employeeCommissionAmount) : roundMoney(totalNum * (rateNum / 100));
@@ -1312,13 +1301,11 @@ export const EmployeesPage = () => {
                     </tbody>
                     <tfoot className="bg-slate-50 font-semibold">
                       <tr>
-                        <td className="px-4 py-3 text-slate-600">إجمالي العمولة</td>
+                        <td className="px-4 py-3 text-slate-600">Total commission</td>
                         <td className="px-4 py-3 text-right">—</td>
                         <td className="px-4 py-3 text-right text-green-600">
                           EGP {new Intl.NumberFormat('en-EG').format((empDetail.transactions || []).reduce((sum, t) => {
-                            const tid = t.id ?? t._id;
-                            const byEmp = selectedEmp?.id ? commissionRateSnapshotRef.current[selectedEmp.id] : {};
-                            const rate = t.employeeCommissionRate ?? byEmp[tid] ?? empDetail.employee?.commissionRate ?? 0;
+                            const rate = t.employeeCommissionRate ?? t.commissionRateAtTime ?? empDetail.employee?.currentCommissionRate ?? empDetail.employee?.commissionRate ?? 0;
                             const rateNum = Number(rate) || 0;
                             const totalNum = Number(t.totalAmount) || 0;
                             const amt = t.employeeCommissionAmount != null ? Number(t.employeeCommissionAmount) : roundMoney(totalNum * (rateNum / 100));
@@ -1330,7 +1317,7 @@ export const EmployeesPage = () => {
                   </table>
                 </div>
               )}
-              <p className="text-[11px] text-slate-400 mt-1">نسبة كل صفقة ثابتة عند أول فتح التفاصيل؛ التعديل على النسبة (Save) يطبق على الصفقات الجديدة فقط.</p>
+              <p className="text-[11px] text-slate-400 mt-1">Each deal stores its commission rate at completion (commissionRateAtTime). Changing the rate only applies to new deals.</p>
             </div>
           </div>
         ) : null}
@@ -1755,7 +1742,7 @@ export const TransactionsPage = () => {
           {existingGenInstallments.length > 0 && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
               <p className="text-sm font-semibold text-amber-800">This transaction already has {existingGenInstallments.length} installment(s).</p>
-              <p className="text-xs text-amber-700">Option 1 — تعديل التاريخ فقط: change the start date below and click &quot;Update dates only&quot;. Same number of installments, no new ones added.</p>
+              <p className="text-xs text-amber-700">Option 1 — Change dates only: change the start date below and click &quot;Update dates only&quot;. Same number of installments, no new ones added.</p>
               <div className="flex flex-wrap items-center gap-3">
                 <input type="date" className="px-3 py-2 border border-amber-300 rounded-xl text-sm" value={genForm.startDate} onChange={(e) => setG('startDate', e.target.value)} />
                 <Button type="button" variant="outline" size="sm" onClick={handleUpdateDatesOnly} loading={loading} className="!rounded-xl">Update dates only</Button>
@@ -1986,10 +1973,10 @@ export const TasksPage = () => {
     }
     const conflict = await checkEmployeeConflict(form.employeeId, dueISO);
     if (conflict) {
-      const msg = 'هذا الموظف لديه معاينة/معاد في نفس التوقيت. اختر وقتاً آخر.';
+      const msg = 'This employee has a viewing or appointment at the same time. Choose another time.';
       setConflictError(msg);
-      toast.warning('لم تُضف المهمة — تعارض مع معاينة.');
-      notificationService.create({ title: 'لم تُضف المهمة — تعارض', message: msg, type: 'warning' }).catch(() => {});
+      toast.warning('Task not added — conflict with a viewing.');
+      notificationService.create({ title: 'Task not added — conflict', message: msg, type: 'warning' }).catch(() => {});
       return;
     }
     const payload = {
@@ -2013,9 +2000,9 @@ export const TasksPage = () => {
         load();
       });
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'لم تُضف المهمة.';
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Task was not added.';
       toast.error(msg);
-      notificationService.create({ title: 'لم تُضف المهمة', message: msg, type: 'error' }).catch(() => {});
+      notificationService.create({ title: 'Task not added', message: msg, type: 'error' }).catch(() => {});
     }
   };
 
@@ -2363,7 +2350,7 @@ export const FinancialsPage = () => {
         const newDue = new Date(oldDue.getTime() + deltaMs);
         await installmentService.updateInstallment(id, { dueDate: newDue.toISOString() });
       }
-      toast.success('تم تعديل تواريخ الأقساط فقط (لم تُضف أقساط جديدة).');
+      toast.success('Installment dates updated only (no new installments added).');
       setGenModalOpen(false);
       setGenForm((f) => ({ ...f, transactionId: '', replaceExisting: false }));
       setExistingGenInstallmentsFin([]);
@@ -2411,7 +2398,7 @@ export const FinancialsPage = () => {
                 <p className="text-2xl font-black text-slate-800 mt-1">{sales.length}</p>
               </div>
               <div className="p-4 bg-blue/5 rounded-2xl border border-blue/20">
-                <p className="text-[11px] font-bold text-blue uppercase tracking-wider">إجمالي الإيجار (Total Rent)</p>
+                <p className="text-[11px] font-bold text-blue uppercase tracking-wider">Total Rent</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">EGP {new Intl.NumberFormat('en-EG').format(rentTotal)}</p>
               </div>
             </div>
@@ -2629,7 +2616,7 @@ export const FinancialsPage = () => {
           {existingGenInstallmentsFin.length > 0 && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
               <p className="text-sm font-semibold text-amber-800">This transaction already has {existingGenInstallmentsFin.length} installment(s).</p>
-              <p className="text-xs text-amber-700">Option 1 — تعديل التاريخ فقط: change the start date below and click &quot;Update dates only&quot;. Same installments, only dates change (no new ones).</p>
+              <p className="text-xs text-amber-700">Option 1 — Change dates only: change the start date below and click &quot;Update dates only&quot;. Same installments, only dates change (no new ones).</p>
               <div className="flex flex-wrap items-center gap-3">
                 <input type="date" className="px-3 py-2 border border-amber-300 rounded-xl text-sm" value={genForm.startDate} onChange={(e) => setG('startDate', e.target.value)} />
                 <Button type="button" variant="outline" size="sm" onClick={handleUpdateDatesOnlyFin} loading={loading} className="!rounded-xl">Update dates only</Button>
