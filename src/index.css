@@ -30,11 +30,11 @@
 
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  /* Single scrollbar: only body scrolls */
+  /* شريط سكرول واحد فقط: التمرير على body فقط */
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
-    overflow-y: hidden;
+    /* overflow-y: hidden; */
     height: 100%;
   }
   body {
@@ -46,26 +46,19 @@
     overflow-y: auto;
     -webkit-font-smoothing: antialiased;
     min-height: 100%;
-    height: 100%;
-  }
-  #root { min-height: 100%; }
+    height: 100%;  }
+  /* #root { min-height: 100%; } */
   a { text-decoration: none; color: inherit; }
   button { cursor: pointer; font-family: inherit; border: none; background: none; }
   input, select, textarea { font-family: inherit; font-size: 14px; }
   img { display: block; }
 }
 
-/* ── Scrollbar (global: body / main content) ── */
+/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d0d7de; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #7d7d7d; }
-
-/* ── Dashboard sidebar scrollbar (left nav: DashboardLayout.jsx <nav className="... dashboard-sidebar-nav">) ── */
-.dashboard-sidebar-nav::-webkit-scrollbar { width: 6px; }
-.dashboard-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
-.dashboard-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 3px; }
-.dashboard-sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.6); }
 
 /* ── Toastify overrides ── */
 .Toastify__toast { font-family: 'DM Sans', system-ui, sans-serif; border-radius: 12px !important; font-size: 14px; }
