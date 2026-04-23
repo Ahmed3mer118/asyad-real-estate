@@ -1,11 +1,12 @@
 // pages/dashboard/Properties/index.js
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../../../layouts/DashboardLayout.jsx';
 import { propertyService } from '../../../services/index.js';
 import { Button, Badge, Modal, Input, Select, Textarea, Spinner, Empty, ConfirmModal } from '../../../components/common/index.jsx';
 import { toast } from 'react-toastify';
 import { useAsync, usePagination } from '../../../hooks/index.jsx';
+import PropertyImageManager from './PropertyImageManager.jsx';
 
 const TYPES = ['Villa', 'Apartment', 'Townhouse', 'Office', 'Land'].map((v) => ({ value: v, label: v }));
 const STATUSES = [{ value: 'sale', label: 'For Sale' }, { value: 'rent', label: 'For Rent' }];
@@ -34,8 +35,13 @@ const PropertiesPage = () => {
   const [editProp, setEditProp] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const imageDraftRef = useRef({ main: null, gallery: [] });
   const { loading, run } = useAsync();
   const pagination = usePagination(1, 10);
+
+  const onImageDraftChange = useCallback((d) => {
+    imageDraftRef.current = d;
+  }, []);
 
   const load = useCallback(async () => {
     await run(async () => {
@@ -83,12 +89,26 @@ const PropertiesPage = () => {
           country: form['location.country'] || 'Egypt',
         },
       };
+      let propertyId = editProp?.id;
       if (editProp) {
         await propertyService.updateProperty(editProp.id, payload);
         toast.success('Property updated!');
       } else {
-        await propertyService.createProperty(payload);
+        const created = await propertyService.createProperty(payload);
+        propertyId = created.data?.property?.id;
         toast.success('Property created!');
+      }
+      if (propertyId) {
+        try {
+          const { main, gallery } = imageDraftRef.current;
+          await propertyService.syncPropertyImages(propertyId, main, gallery);
+        } catch (imgErr) {
+          const msg =
+            imgErr.response?.data?.message ||
+            imgErr.message ||
+            'Image step failed (check backend POST /properties/:id/images and PATCH images).';
+          toast.warn(msg);
+        }
       }
       setModalOpen(false);
       load();
@@ -226,6 +246,7 @@ const PropertiesPage = () => {
             <div className="sm:col-span-2">
               <Textarea label="Description" value={form.description} onChange={(e) => setF('description', e.target.value)} rows={3} />
             </div>
+            <PropertyImageManager key={editProp?.id || 'new'} property={editProp} onDraftChange={onImageDraftChange} />
             <label className="flex items-center gap-3 cursor-pointer group">
               <div className="relative">
                 <input

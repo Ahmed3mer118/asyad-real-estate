@@ -1,5 +1,26 @@
 // Aligned with backend Property.model: name, statusSaleRent, availability, propertyType, area, category, ownerId, details, location, images
 export class Property {
+  static normalizeImages(images) {
+    if (images == null) return [];
+    const arr = Array.isArray(images) ? images : [images];
+    const out = arr.map((item, i) => {
+      if (typeof item === 'string') {
+        return { url: item, isMain: false, order: i };
+      }
+      const url = item?.url || item?.path || '';
+      return {
+        ...item,
+        url,
+        isMain: Boolean(item?.isMain),
+        order: item?.order ?? i,
+      };
+    });
+    if (out.length && !out.some((x) => x.isMain)) {
+      out[0] = { ...out[0], isMain: true };
+    }
+    return out;
+  }
+
   constructor(data = {}) {
     this.id = data._id || data.id || null;
     this.name = data.name || '';
@@ -25,7 +46,9 @@ export class Property {
       latitude: data.location?.latitude ?? null,
       longitude: data.location?.longitude ?? null,
     };
-    this.images = Array.isArray(data.images) ? data.images : (data.images ? [data.images] : []);
+    this.images = Property.normalizeImages(
+      Array.isArray(data.images) ? data.images : data.images ? [data.images] : []
+    );
     this.isActive = data.isActive ?? true;
     this.createdAt = data.createdAt ? new Date(data.createdAt) : null;
     this.updatedAt = data.updatedAt ? new Date(data.updatedAt) : null;
@@ -54,8 +77,10 @@ export class Property {
   }
 
   get thumbnail() {
-    const main = this.images?.find((i) => i?.isMain);
-    return main?.url || this.images?.[0]?.url || null;
+    const list = this.images || [];
+    const main = list.find((i) => i?.isMain);
+    const first = list[0];
+    return main?.url || (typeof first === 'string' ? first : first?.url) || null;
   }
 
   get shortLocation() {

@@ -115,6 +115,75 @@ class PropertyService extends ApiService {
     const { data } = await this.client.patch(`/properties/${id}/deactivate`);
     return data?.data ?? data;
   }
+
+  /**
+   * Upload new image files for a property (multipart).
+   * Backend: POST /api/v1/properties/:id/images — field name `images` (repeat for each file).
+   * Response: { data: [ { url, _id? } ] } or { data: { images: [...] } } (either shape is accepted).
+   */
+  async appendPropertyImages(propertyId, files) {
+    if (!files?.length) return [];
+    const fd = new FormData();
+    files.forEach((file) => fd.append('images', file));
+    const { data } = await this.client.post(`/properties/${propertyId}/images`, fd, {
+      transformRequest: [
+        (body, headers) => {
+          if (headers && typeof headers.delete === 'function') {
+            headers.delete('Content-Type');
+          } else if (headers) {
+            delete headers['Content-Type'];
+          }
+          return body;
+        },
+      ],
+    });
+    const raw = data?.data?.images ?? data?.data ?? data?.images ?? data;
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    return list;
+  }
+
+  /**
+   * Merge local slots (cover + gallery) with optional new Files: upload files then PATCH `images`.
+   * Each slot: { url?, _id?, file?, isMain }.
+   */
+  async syncPropertyImages(propertyId, mainSlot, gallerySlots = []) {
+    let main = mainSlot && (mainSlot.url || mainSlot.file) ? { ...mainSlot, isMain: true } : null;
+    let gallery = (gallerySlots || []).filter((s) => s && (s.url || s.file)).map((s) => ({ ...s, isMain: false }));
+    if (!main && gallery.length) {
+      main = { ...gallery[0], isMain: true };
+      gallery = gallery.slice(1);
+    }
+    const ordered = [];
+    if (main) ordered.push(main);
+    gallery.forEach((s) => ordered.push(s));
+    const files = [];
+    ordered.forEach((s) => {
+      if (s.file) files.push(s.file);
+    });
+    let uploaded = [];
+    if (files.length) {
+      uploaded = await this.appendPropertyImages(propertyId, files);
+    }
+    if (!Array.isArray(uploaded)) uploaded = uploaded ? [uploaded] : [];
+    let uploadIdx = 0;
+    const images = ordered
+      .map((s, order) => {
+        let url = s.url || '';
+        let _id = s._id || s.id;
+        if (s.file) {
+          const doc = uploaded[uploadIdx++] || {};
+          url = doc.url || doc.path || url;
+          _id = doc._id || doc.id || _id;
+        }
+        if (!url) return null;
+        const row = { url, isMain: !!s.isMain, order };
+        if (_id) row._id = _id;
+        return row;
+      })
+      .filter(Boolean);
+    await this.updateProperty(propertyId, { images });
+    return images;
+  }
 }
 
 const propertyService = new PropertyService();

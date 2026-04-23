@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authService, userService } from '../../../services/index.js';
 import { getUserIdFromToken, getRole } from '../../../utils/authUtils.js';
-import { toast , ToastContainer } from 'react-toastify';
+import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const USER_KEY = 'asyad_user';
@@ -11,25 +11,42 @@ const USER_KEY = 'asyad_user';
 /* ─── Shared Split Layout ─── */
 const AuthLayout = ({ quote, sub, children }) => (
   <div className="flex min-h-screen flex-col md:flex-row">
-    {/* Left panel — hidden on small screens */}
-    <div className="w-full md:w-1/2 relative overflow-hidden flex flex-col px-6 sm:px-10 md:px-[60px] py-8 md:py-10 hidden md:flex"
-      style={{ background: 'linear-gradient(135deg, #050d1f 0%, #0c2040 50%, #174a8a 100%)' }}>
-      <div className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse 70% 60% at 60% 40%, rgba(2,137,251,0.22) 0%, transparent 70%)' }} />
-      <Link to="/" className="font-display text-2xl md:text-[28px] font-black text-white relative z-10 tracking-tight">ASYAD</Link>
-      <div className="flex-1 flex flex-col justify-end pb-10 md:pb-[60px] relative z-10">
-        <h2 className="font-display text-3xl sm:text-4xl md:text-[48px] font-black text-white leading-[1.1] mb-3">{quote}</h2>
-        <p className="text-sm md:text-[16px] text-white/60">{sub}</p>
+
+      <div className="absolute top-[10px] z-40 w-full mx-[30px] md:w-1/2 px-6 sm:px-10 md:px-[5px] py-8 md:py-10 sm:hidden">
+        <Link
+          to="/"
+          className="absolute font-display text-2xl md:text-[28px] font-black text-white tracking-tight hover:opacity-80 transition-opacity"
+        >
+          ASYAD
+        </Link>
       </div>
+    <div className="relative z-20 flex-1 hidden md:flex flex-col justify-end pb-10 md:pb-[60px] overflow-hidden">
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        loading="lazy"
+        className="absolute inset-0 z-10 w-full h-full object-cover"
+      >
+        <source src="/video2.mp4" type="video/mp4" />
+      </video>
+
+      <div className="absolute inset-0 bg-black/20" />
+
+      <div className="relative z-10 w-full mx-[30px] md:w-1/2 px-6 sm:px-10 md:px-[5px] py-8 md:py-10">
+        {quote && <p className="text-white text-2xl">{quote}</p>}
+        {sub && <p className="text-white text-lg opacity-80">{sub}</p>}
+      </div>
+
     </div>
 
-    {/* Right panel — full width on mobile (page scroll only, no inner scroll) */}
+    {/* Right panel — full width on mobile */}
     <div className="w-full md:w-1/2 flex items-center justify-center px-4 sm:px-6 md:px-10 py-6 sm:py-8 md:py-10 bg-white min-h-[60vh] md:min-h-0">
       <div className="w-full max-w-[460px] py-4">{children}</div>
     </div>
   </div>
 );
-
 /* ── Shared input style ── */
 const inputCls = `w-full h-[52px] px-4 border-[1.5px] border-border rounded-md text-[14px] text-dark
   outline-none transition-all duration-200 bg-white
@@ -68,6 +85,7 @@ export const LoginPage = () => {
 
   return (
     <AuthLayout quote="Find your dream home today." sub="Join 10,000+ happy homeowners.">
+
       <ToastContainer position="bottom-right" autoClose={3500} hideProgressBar />
       <h1 className="font-display text-2xl sm:text-[28px] md:text-[30px] font-bold text-dark mb-2">Welcome Back! 👋</h1>
       <p className="text-sm sm:text-[15px] text-gray mb-6 sm:mb-8">Enter your details to access your account.</p>

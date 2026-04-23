@@ -74,9 +74,19 @@ const HomePage = () => {
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* BG gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#050d1f] via-[#0c2040] to-[#174a8a]">
-          <div className="absolute inset-0"
+        <video
+    autoPlay
+    muted
+    loop
+    playsInline
+    loading="lazy"
+    className="absolute inset-0 w-full h-full object-cover"
+  >
+    <source src="/video1.mp4" type="video/mp4" />
+  </video>
+          {/* <div className="absolute inset-0"
             style={{ background: 'radial-gradient(ellipse 80% 60% at 65% 40%, rgba(2,137,251,0.22) 0%, transparent 70%), radial-gradient(ellipse 50% 40% at 15% 75%, rgba(2,137,251,0.1) 0%, transparent 60%)' }}
-          />
+          /> */}
         </div>
 
         {/* Content */}

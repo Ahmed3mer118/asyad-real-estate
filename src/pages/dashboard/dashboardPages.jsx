@@ -1,5 +1,5 @@
 // pages/dashboard/dashboardPages.jsx
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '../../layouts/DashboardLayout.jsx';
 import {
@@ -2115,24 +2115,83 @@ export const TasksPage = () => {
 
 export const EvaluationsPage = () => {
   const [evals, setEvals] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ employeeId: '', rating: 5, comments: '' });
   const { loading, run } = useAsync();
   const pagination = usePagination(1, 10);
 
   const load = useCallback(async () => {
     await run(async () => {
       const res = await evaluationService.getAll({ page: pagination.page, limit: pagination.limit });
-      setEvals(res.data?.evaluations || []);
-      pagination.setTotal(res.data?.total || 0);
+      const data = res?.data ?? res;
+      const list = Array.isArray(data) ? data : (data?.evaluations || []);
+      setEvals(list);
+      pagination.setTotal(res?.total ?? data?.total ?? list.length);
     });
   }, [pagination.page]);
 
+  const loadEmployees = useCallback(async () => {
+    try {
+      const res = await employeeService.getAllEmployees({ limit: 500 });
+      setEmployees(res.data?.employees || []);
+    } catch { setEmployees([]); }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadEmployees(); }, [loadEmployees]);
+  useEffect(() => { if (addModalOpen) loadEmployees(); }, [addModalOpen]);
+
+  const handleAddEvaluation = async (e) => {
+    e.preventDefault();
+    const employeeId = addForm.employeeId?.trim();
+    if (!employeeId) { toast.error('Select an employee'); return; }
+    const rating = Number(addForm.rating) || 5;
+    if (rating < 1 || rating > 5) { toast.error('Rating must be 1–5'); return; }
+    await run(async () => {
+      await evaluationService.createEvaluation({
+        employeeId,
+        rating,
+        comments: addForm.comments?.trim() || undefined,
+      });
+      toast.success('Evaluation added');
+      setAddModalOpen(false);
+      setAddForm({ employeeId: '', rating: 5, comments: '' });
+      load();
+    });
+  };
+
+  const employeesById = useMemo(() => {
+    const map = {};
+    employees.forEach((emp) => { if (emp.id) map[emp.id] = emp; });
+    return map;
+  }, [employees]);
+
+  const employeeName = (e) => {
+    const emp = e.employeeId;
+    if (!emp) return '—';
+    if (typeof emp === 'object') return emp.name || emp.userName || emp.email || '—';
+    return employeesById[emp]?.name || employeesById[emp]?.email || emp;
+  };
+
+  const evaluatorName = (e) => {
+    const who = e.ratingBy ?? e.evaluatorId;
+    if (!who) return '—';
+    return typeof who === 'object' ? (who.userName || who.fullName || who.email || '—') : who;
+  };
+
+  const formatEvalDate = (e) => {
+    const d = e.evaluationDate || e.createdAt;
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-EG', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
 
   return (
     <DashboardLayout>
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-800">Customer Evaluations</h3>
+        <div className="p-6 border-b border-slate-50 flex items-center justify-between flex-wrap gap-4">
+          <h3 className="text-lg font-bold text-slate-800">Evaluations (from customers & admin)</h3>
+          <Button size="sm" onClick={() => setAddModalOpen(true)}>Add evaluation (admin)</Button>
         </div>
         {loading ? (
           <div className="flex justify-center py-24"><Spinner size="lg" /></div>
@@ -2145,15 +2204,19 @@ export const EvaluationsPage = () => {
                 <tr>
                   <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Employee</th>
                   <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rating</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rated by</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
                   <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Comments</th>
                 </tr>
               </thead>
               <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
                 {evals.map((e) => (
-                  <motion.tr key={e.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors">
-                    <td className="px-6 py-4 font-bold text-slate-700 text-sm">{e.employeeId || '—'}</td>
+                  <motion.tr key={e._id || e.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors">
+                    <td className="px-6 py-4 font-bold text-slate-700 text-sm">{employeeName(e)}</td>
                     <td className="px-6 py-4"><span className="text-amber-400 font-bold">{Array(e.rating).fill('★').join('')}</span></td>
-                    <td className="px-6 py-4"><p className="text-xs text-slate-500 italic max-w-[300px] truncate">{e.comments}</p></td>
+                    <td className="px-6 py-4 text-slate-600 text-sm">{evaluatorName(e)}</td>
+                    <td className="px-6 py-4 text-slate-500 text-sm whitespace-nowrap">{formatEvalDate(e)}</td>
+                    <td className="px-6 py-4"><p className="text-xs text-slate-500 italic max-w-[300px] truncate">{e.comments || '—'}</p></td>
                   </motion.tr>
                 ))}
               </motion.tbody>
@@ -2161,6 +2224,50 @@ export const EvaluationsPage = () => {
           </div>
         )}
       </div>
+
+      <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Add evaluation (admin)">
+        <form onSubmit={handleAddEvaluation} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Employee</label>
+            <select
+              required
+              value={addForm.employeeId}
+              onChange={(e) => setAddForm((f) => ({ ...f, employeeId: e.target.value }))}
+              className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm"
+            >
+              <option value="">Select employee...</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.name || emp.email || emp.id}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Rating (1–5)</label>
+            <select
+              value={addForm.rating}
+              onChange={(e) => setAddForm((f) => ({ ...f, rating: Number(e.target.value) }))}
+              className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm"
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n} ★</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Comments (optional)</label>
+            <textarea
+              value={addForm.comments}
+              onChange={(e) => setAddForm((f) => ({ ...f, comments: e.target.value }))}
+              className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm min-h-[80px]"
+              placeholder="Optional feedback"
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="ghost" onClick={() => setAddModalOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={loading}>Add evaluation</Button>
+          </div>
+        </form>
+      </Modal>
     </DashboardLayout>
   );
 };
