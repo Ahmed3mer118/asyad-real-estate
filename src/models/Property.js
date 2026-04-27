@@ -1,13 +1,15 @@
 // Aligned with backend Property.model: name, statusSaleRent, availability, propertyType, area, category, ownerId, details, location, images
+import { normalizeAssetUrl } from '../utils/assetUrl.js';
+
 export class Property {
   static normalizeImages(images) {
     if (images == null) return [];
     const arr = Array.isArray(images) ? images : [images];
     const out = arr.map((item, i) => {
       if (typeof item === 'string') {
-        return { url: item, isMain: false, order: i };
+        return { url: normalizeAssetUrl(item), isMain: false, order: i };
       }
-      const url = item?.url || item?.path || '';
+      const url = normalizeAssetUrl(item?.url || item?.path || '');
       return {
         ...item,
         url,

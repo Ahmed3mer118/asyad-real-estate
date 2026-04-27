@@ -5,6 +5,7 @@ import UserLayout from '../../../layouts/UserLayout.jsx';
 import { propertyService, appointmentService } from '../../../services/index.js';
 import { Spinner, Button, Badge } from '../../../components/common/index.jsx';
 import { getToken } from '../../../utils/authUtils.js';
+import { normalizeAssetUrl } from '../../../utils/assetUrl.js';
 import { toast } from 'react-toastify';
 
 const PropertyDetailPage = () => {
@@ -39,7 +40,7 @@ const PropertyDetailPage = () => {
           setProperty(nextProperty);
           const imgs = nextProperty?.images?.length ? nextProperty.images : [];
           const firstMain = imgs.find((i) => i?.isMain)?.url || imgs[0]?.url || '';
-          setActiveImage(firstMain);
+          setActiveImage(normalizeAssetUrl(firstMain));
         }
       } catch {
         if (!cancelled) setProperty(null);
@@ -105,7 +106,7 @@ const PropertyDetailPage = () => {
   }
 
   const images = property.images?.length ? property.images : [{ url: null, isMain: true }];
-  const mainImg = activeImage || images.find((i) => i?.isMain)?.url || images[0]?.url;
+  const mainImg = normalizeAssetUrl(activeImage || images.find((i) => i?.isMain)?.url || images[0]?.url || '');
 
   return (
     <UserLayout>
@@ -136,13 +137,13 @@ const PropertyDetailPage = () => {
                   <button
                     key={i}
                     type="button"
-                    onClick={() => setActiveImage(img?.url || '')}
+                    onClick={() => setActiveImage(normalizeAssetUrl(img?.url || ''))}
                     className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 bg-slate-100 transition-colors ${
-                      (img?.url || '') === mainImg ? 'border-primary' : 'border-transparent hover:border-primary'
+                      normalizeAssetUrl(img?.url || '') === mainImg ? 'border-primary' : 'border-transparent hover:border-primary'
                     }`}
                   >
                     {img?.url ? (
-                      <img src={`${import.meta.env.VITE_API_URL}/${img.url}`} alt="" className="w-full h-full object-cover" />
+                      <img src={normalizeAssetUrl(img.url)} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-2xl">🏠</div>
                     )}
