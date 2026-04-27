@@ -23,12 +23,11 @@ export class Property {
 
   constructor(data = {}) {
     this.id = data._id || data.id || null;
-    this.slug = data.slug || '';
     this.name = data.name || '';
     this.description = data.description || '';
     this.price = data.price || 0;
     this.statusSaleRent = data.statusSaleRent || 'sale'; // backend: "rent" | "sale"
-    this.availability = data.availability || 'available'; // backend: "available" | "sold" | "unavailable"
+    this.availability = data.availability || 'available'; // backend: "available" | "sold"
     this.propertyType = data.propertyType || '';
     this.area = data.area || 0;
     this.features = data.features || '';
@@ -44,14 +43,12 @@ export class Property {
       country: data.location?.country || 'Egypt',
       city: data.location?.city || '',
       address: data.location?.address || '',
-      googleMapsUrl: data.location?.googleMapsUrl || '',
       latitude: data.location?.latitude ?? null,
       longitude: data.location?.longitude ?? null,
     };
     this.images = Property.normalizeImages(
       Array.isArray(data.images) ? data.images : data.images ? [data.images] : []
     );
-    this.isFavorited = Boolean(data.isFavorited);
     this.isActive = data.isActive ?? true;
     this.createdAt = data.createdAt ? new Date(data.createdAt) : null;
     this.updatedAt = data.updatedAt ? new Date(data.updatedAt) : null;
@@ -79,10 +76,6 @@ export class Property {
     return this.statusSaleRent === 'sale';
   }
 
-  get isSold() {
-    return (this.availability || 'available') !== 'available';
-  }
-
   get thumbnail() {
     const list = this.images || [];
     const main = list.find((i) => i?.isMain);
@@ -92,10 +85,6 @@ export class Property {
 
   get shortLocation() {
     return [this.location?.address, this.location?.city].filter(Boolean).join(', ') || '—';
-  }
-
-  get detailPath() {
-    return `/property/${this.slug || this.id}`;
   }
 
   get specsSummary() {

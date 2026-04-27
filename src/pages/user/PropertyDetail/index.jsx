@@ -142,7 +142,7 @@ const PropertyDetailPage = () => {
                     }`}
                   >
                     {img?.url ? (
-                      <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      <img src={`${import.meta.env.VITE_API_URL}/${img.url}`} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-2xl">🏠</div>
                     )}
