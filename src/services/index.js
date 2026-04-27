@@ -623,22 +623,24 @@ class FavoriteService extends ApiService {
 const favoriteService = new FavoriteService();
 
 
-// // services/WebhookService.js
+// services/WebhookService.js
 
-// class WebhookService extends ApiService {
-//   constructor() {
-//     super('webhooks');
-//     const secret = import.meta.env.VITE_WEBHOOK_SECRET || '';
-//     this.client.defaults.headers.common['X-Webhook-Secret'] = secret;
-//   }
+class WebhookService extends ApiService {
+  constructor() {
+    super('webhooks');
+    const secret = import.meta.env.VITE_WEBHOOK_SECRET || '';
+    if (secret) {
+      this.client.defaults.headers.common['X-Webhook-Secret'] = secret;
+    }
+  }
 
-//   async getStats() {
-//     const { data } = await this.client.get('/webhooks/stats');
-//     return data;
-//   }
-// }
+  async getStats() {
+    const { data } = await this.client.get('/webhooks/stats');
+    return data;
+  }
+}
 
-// const webhookService = new WebhookService();
+const webhookService = new WebhookService();
 
 // services/EvaluationService.js — backend: create (employeeId, rating, comments?, appointmentId?, transactionId?); evaluatorId from req.user
 import { Evaluation } from '../models/index.js';
