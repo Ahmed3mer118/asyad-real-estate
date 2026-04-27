@@ -8,9 +8,10 @@ import { getToken } from '../../../utils/authUtils.js';
 import { toast } from 'react-toastify';
 
 const PropertyDetailPage = () => {
-  const { id } = useParams();
+  const { slug } = useParams();
   const navigate = useNavigate();
   const [property, setProperty] = useState(null);
+  const [activeImage, setActiveImage] = useState('');
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [form, setForm] = useState({
@@ -26,8 +27,20 @@ const PropertyDetailPage = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await propertyService.getById(id);
-        if (!cancelled) setProperty(res.data?.property || null);
+        let res = null;
+        try {
+          res = await propertyService.getBySlug(slug);
+        } catch {
+          // Backward compatibility for old links that still contain object id.
+          res = await propertyService.getById(slug);
+        }
+        if (!cancelled) {
+          const nextProperty = res.data?.property || null;
+          setProperty(nextProperty);
+          const imgs = nextProperty?.images?.length ? nextProperty.images : [];
+          const firstMain = imgs.find((i) => i?.isMain)?.url || imgs[0]?.url || '';
+          setActiveImage(firstMain);
+        }
       } catch {
         if (!cancelled) setProperty(null);
       } finally {
@@ -35,7 +48,7 @@ const PropertyDetailPage = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [slug]);
 
   const handleBookViewing = async (e) => {
     e.preventDefault();
@@ -53,7 +66,7 @@ const PropertyDetailPage = () => {
         return;
       }
       await appointmentService.book({
-        propertyId: id,
+        propertyId: property?.id,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         notes: form.notes || undefined,
@@ -92,7 +105,7 @@ const PropertyDetailPage = () => {
   }
 
   const images = property.images?.length ? property.images : [{ url: null, isMain: true }];
-  const mainImg = images.find((i) => i?.isMain)?.url || images[0]?.url;
+  const mainImg = activeImage || images.find((i) => i?.isMain)?.url || images[0]?.url;
 
   return (
     <UserLayout>
@@ -123,7 +136,10 @@ const PropertyDetailPage = () => {
                   <button
                     key={i}
                     type="button"
-                    className="flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 border-transparent hover:border-primary bg-slate-100"
+                    onClick={() => setActiveImage(img?.url || '')}
+                    className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 bg-slate-100 transition-colors ${
+                      (img?.url || '') === mainImg ? 'border-primary' : 'border-transparent hover:border-primary'
+                    }`}
                   >
                     {img?.url ? (
                       <img src={img.url} alt="" className="w-full h-full object-cover" />
@@ -138,9 +154,18 @@ const PropertyDetailPage = () => {
             {/* Title & price */}
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <Badge color={property.isForSale ? 'gray' : 'blue'} className="mb-2">
-                  {property.badgeText}
-                </Badge>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <Badge color={property.isForSale ? 'gray' : 'blue'}>
+                    {property.badgeText}
+                  </Badge>
+                  <Badge color={property.availability === 'available' ? 'green' : property.availability === 'unavailable' ? 'gray' : 'rose'}>
+                    {property.availability === '"available'
+                      ? '"available'
+                      : property.availability === 'unavailable'
+                        ? 'Unavailable'
+                        : 'Available'}
+                  </Badge>
+                </div>
                 <h1 className="font-display text-2xl lg:text-3xl font-bold text-dark">{property.name}</h1>
                 <p className="text-gray mt-1 flex items-center gap-2 flex-wrap">
                   <span className="flex items-center gap-1">📍 {property.shortLocation || '—'}</span>
@@ -183,6 +208,20 @@ const PropertyDetailPage = () => {
                 <p className="text-slate-600 leading-relaxed">{property.features}</p>
               </div>
             )}
+
+            {property.location?.googleMapsUrl && (
+              <div>
+                <h2 className="font-display text-lg font-bold text-dark mb-2">Location on map</h2>
+                <a
+                  href={property.location.googleMapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue text-white font-semibold hover:opacity-90"
+                >
+                  Open in Google Maps
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Sidebar: Book viewing (only if property still available — no booking after sale/rent) */}
@@ -196,7 +235,7 @@ const PropertyDetailPage = () => {
                 {(property.availability || 'available') !== 'available' ? (
                   <div className="text-center py-6 px-4 bg-amber-50 border border-amber-200 rounded-xl">
                     <p className="font-semibold text-amber-800">This property is not available for viewings</p>
-                    <p className="text-sm text-amber-700 mt-1">This property has been sold or rented and viewings can no longer be booked.</p>
+                    <p className="text-sm text-amber-700 mt-1">This property has been "available or rented and viewings can no longer be booked.</p>
                     <Link to="/explore" className="inline-block mt-4 text-primary font-semibold hover:underline">Browse available properties</Link>
                   </div>
                 ) : isAuth ? (
@@ -256,7 +295,7 @@ const PropertyDetailPage = () => {
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-slate-600 mb-4">Log in to book a viewing for this property</p>
-                    <Button onClick={() => navigate('/login', { state: { from: `/property/${id}` } })} className="w-full !h-12 !rounded-xl">
+                    <Button onClick={() => navigate('/login', { state: { from: `/property/${slug}` } })} className="w-full !h-12 !rounded-xl">
                       Log in
                     </Button>
                     <Link to="/register" className="block mt-3 text-sm text-primary font-semibold hover:underline">

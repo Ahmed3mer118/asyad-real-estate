@@ -82,8 +82,27 @@ class PropertyService extends ApiService {
     };
   }
 
+  async getAdminList(filters = {}) {
+    const { data } = await this.client.get('/properties/admin/all', { params: filters });
+    const list = data?.data ?? [];
+    const pagination = data?.pagination ?? { page: 1, limit: 10, total: 0, totalPages: 0 };
+    return {
+      data: {
+        properties: Property.fromArray(Array.isArray(list) ? list : []),
+        ...pagination,
+      },
+      pagination,
+    };
+  }
+
   async getById(id) {
     const { data } = await this.client.get(`/properties/${id}`);
+    const raw = data?.data ?? data;
+    return { data: { property: new Property(raw || {}) } };
+  }
+
+  async getBySlug(slug) {
+    const { data } = await this.client.get(`/properties/slug/${slug}`);
     const raw = data?.data ?? data;
     return { data: { property: new Property(raw || {}) } };
   }
@@ -113,6 +132,11 @@ class PropertyService extends ApiService {
 
   async deactivateProperty(id) {
     const { data } = await this.client.patch(`/properties/${id}/deactivate`);
+    return data?.data ?? data;
+  }
+
+  async activateProperty(id) {
+    const { data } = await this.client.patch(`/properties/${id}/activate`);
     return data?.data ?? data;
   }
 
@@ -553,7 +577,7 @@ class FavoriteService extends ApiService {
     const { data } = await this.client.get('/favorites/me', { params });
     const list = data?.data ?? [];
     const arr = Array.isArray(list) ? list : [];
-    const properties = arr.map((f) => f.propertyId || f).filter(Boolean);
+    const properties = arr.map((f) => ({ ...(f.propertyId || f), isFavorited: true })).filter(Boolean);
     return {
       data: {
         properties: Property.fromArray(properties),

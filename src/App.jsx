@@ -3,6 +3,8 @@ import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { getToken, getRole } from './utils/authUtils.js';
 import { Spinner } from './components/common/index.jsx';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
 
 /* ── LAZY PAGES ── */
@@ -30,6 +32,7 @@ const FavoritesReportPage = lazy(() => import('./pages/dashboard/FavoritesReport
 const PropertyDetailPage = lazy(() => import('./pages/user/PropertyDetail/index.jsx'));
 const MyAppointmentsPage = lazy(() => import('./pages/user/MyAppointments/index.jsx'));
 const MyPaymentsPage = lazy(() => import('./pages/user/MyPayments/index.jsx'));
+const FavoritesPage = lazy(() => import('./pages/user/Favorites/index.jsx'));
 const ProfilePage = lazy(() => import('./pages/user/Profile/index.jsx'));
 const ServicesPage = lazy(() => import('./pages/user/Services/index.jsx'));
 const AboutPage = lazy(() => import('./pages/user/About/index.jsx'));
@@ -87,17 +90,17 @@ const ScrollToTop = () => {
 /* ── APP ── */
 const App = () => (
   <BrowserRouter>
-      <ScrollToTop />
-      <Suspense fallback={<SuspenseFallback />}>
-        <Routes>
+    <ScrollToTop />
+    <Suspense fallback={<SuspenseFallback />}>
+      <Routes>
           {/* ── USER ROUTES ── */}
           <Route path="/" element={<HomePage />} />
           <Route path="/explore" element={<ExplorePage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route path="/property/:id" element={<PropertyDetailPage />} />
-          {/* <Route path="/favorites" element={<PrivateRoute><ComingSoon title="My Favorites" /></PrivateRoute>} /> */}
+          <Route path="/property/:slug" element={<PropertyDetailPage />} />
+          <Route path="/favorites" element={<PrivateRoute><FavoritesPage /></PrivateRoute>} />
           {/* <Route path="/my-requests" element={<PrivateRoute><ComingSoon title="My Requests" /></PrivateRoute>} /> */}
           <Route path="/my-appointments" element={<PrivateRoute><MyAppointmentsPage /></PrivateRoute>} />
           <Route path="/my-payments" element={<PrivateRoute><MyPaymentsPage /></PrivateRoute>} />
@@ -130,9 +133,15 @@ const App = () => (
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+      </Routes>
+    </Suspense>
+    <ToastContainer
+      position="bottom-right"
+      autoClose={3500}
+      hideProgressBar
+      toastClassName="!rounded-2xl !shadow-xl !border-0"
+    />
+  </BrowserRouter>
 );
 
 export default App;

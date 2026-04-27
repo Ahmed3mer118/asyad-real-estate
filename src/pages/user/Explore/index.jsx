@@ -6,6 +6,7 @@ import PropertyCard from '../../../components/property/PropertyCard.jsx';
 import { propertyService } from '../../../services/index.js';
 import { Spinner, Empty } from '../../../components/common/index.jsx';
 import { useDebounce } from '../../../hooks/index.jsx';
+import { toast } from 'react-toastify';
 
 const TYPES = ['Villa', 'Apartment', 'Townhouse', 'Office', 'Land'];
 const SORT_OPTIONS = [
@@ -58,7 +59,7 @@ const ExplorePage = () => {
   const fetchProperties = async () => {
     setLoading(true);
     try {
-      const params = { page, limit: LIMIT, availability: 'available' };
+      const params = { page, limit: LIMIT };
       if (debouncedSearch) params.search = debouncedSearch;
       if (filters.city) params.city = filters.city;
       if (filters.type) params.type = filters.type;
@@ -70,12 +71,12 @@ const ExplorePage = () => {
       if (filters.sort) params.sort = filters.sort;
       const res = await propertyService.getList(params);
       const list = res.data?.properties || [];
-      const availableOnly = list.filter((p) => (p.availability || 'available') === 'available');
-      setProperties(availableOnly);
+      setProperties(list);
       setTotal(res.data?.total ?? 0);
     } catch {
       setProperties([]);
       setTotal(0);
+      toast.error('Failed to load properties. Check backend server and API URL.');
     }
     setLoading(false);
   };

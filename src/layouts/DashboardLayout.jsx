@@ -6,23 +6,21 @@ import { getStoredUser } from '../utils/authUtils.js';
 import { authService } from '../services/index.js';
 import { useNotifications } from '../hooks/index.jsx';
 import { Avatar, Badge } from '../components/common/index.jsx';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 
 const NAV_ITEMS = [
   { icon: '📊', label: 'Overview', path: '/dashboard' },
   { icon: '🏠', label: 'Properties', path: '/dashboard/properties' },
-  { icon: '📋', label: 'Requests', path: '/dashboard/requests' },
-  { icon: '📅', label: 'Appointments', path: '/dashboard/appointments' },
-  { icon: '💳', label: 'Payments', path: '/dashboard/payments' },
   { icon: '👥', label: 'Users', path: '/dashboard/users' },
   { icon: '👷', label: 'Employees', path: '/dashboard/employees' },
+  { icon: '📋', label: 'Requests', path: '/dashboard/requests' },
+  { icon: '📋', label: 'Tasks', path: '/dashboard/tasks' },
+  { icon: '⭐', label: 'Evaluations', path: '/dashboard/evaluations' },
+  { icon: '📅', label: 'Appointments', path: '/dashboard/appointments' },
   { icon: '🧾', label: 'Transactions', path: '/dashboard/transactions' },
+  { icon: '💳', label: 'Payments', path: '/dashboard/payments' },
   { icon: '💰', label: 'Financials', path: '/dashboard/financials' },
   { icon: '📈', label: 'Reports', path: '/dashboard/reports' },
   { icon: '❤️', label: 'Favorites', path: '/dashboard/favorites' },
-  { icon: '📋', label: 'Tasks', path: '/dashboard/tasks' },
-  { icon: '⭐', label: 'Evaluations', path: '/dashboard/evaluations' },
   { icon: '🔔', label: 'Notifications', path: '/dashboard/notifications' },
 ];
 
@@ -181,12 +179,6 @@ const DashboardLayout = ({ children }) => {
         </div>
       </main>
 
-      <ToastContainer
-        position="bottom-right"
-        autoClose={3500}
-        hideProgressBar
-        toastClassName="!rounded-2xl !shadow-xl !border-0"
-      />
     </div>
   );
 };

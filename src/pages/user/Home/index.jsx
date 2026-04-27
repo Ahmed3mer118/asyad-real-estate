@@ -49,9 +49,9 @@ const HomePage = () => {
   const [search, setSearch] = useState({ location: '', type: '', price: '' });
 
   useEffect(() => {
-    propertyService.getList({ limit: 10, sort: '-createdAt', availability: 'available' })
+    propertyService.getList({ limit: 10, sort: '-createdAt' })
       .then((res) => {
-        const list = (res.data?.properties || []).filter((p) => (p.availability || 'available') === 'available');
+        const list = res.data?.properties || [];
         setNewestProperties(list.slice(0, 3));
       })
       .catch(() => { })

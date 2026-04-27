@@ -144,7 +144,8 @@ const Navbar = ({ transparent = false }) => {
           ) : (
             <div className="flex gap-2 sm:gap-3 shrink-0">
               <Link
-                to={{ pathname: '/login', state: { from: location.pathname + (location.search || '') } }}
+                to="/login"
+                state={{ from: location.pathname + (location.search || '') }}
                 className={`px-4 sm:px-[22px] py-2 sm:py-[10px] rounded-pill text-[13px] sm:text-[14px] font-semibold transition-all duration-200 border-[1.5px] whitespace-nowrap
                   ${isSolid
                     ? 'border-border text-dark hover:border-blue hover:text-blue'
@@ -202,7 +203,7 @@ const Navbar = ({ transparent = false }) => {
             <button onClick={logout} className="block py-3 px-2 text-[15px] text-red text-left font-medium">🚪 Logout</button>
           ) : (
             <>
-              <Link to={{ pathname: '/login', state: { from: location.pathname + (location.search || '') } }} className="block py-3 px-2 text-[15px] font-medium text-dark border-b border-gray-light">Log In</Link>
+              <Link to="/login" state={{ from: location.pathname + (location.search || '') }} className="block py-3 px-2 text-[15px] font-medium text-dark border-b border-gray-light">Log In</Link>
               <Link to="/register" className="block py-3 px-2 text-[15px] font-medium text-dark border-b border-gray-light">Sign Up</Link>
             </>
           )}

@@ -14,7 +14,7 @@ const STATUSES = [{ value: 'sale', label: 'For Sale' }, { value: 'rent', label: 
 const EMPTY_FORM = {
   name: '', description: '', price: '', statusSaleRent: 'sale', propertyType: 'Apartment',
   'details.bedrooms': '', 'details.bathrooms': '', 'details.area': '', 'details.furnished': false,
-  'location.address': '', 'location.city': '', 'location.country': 'Egypt',
+  'location.address': '', 'location.city': '', 'location.country': 'Egypt', 'location.googleMapsUrl': '',
 };
 
 const tableContainerVariants = {
@@ -48,7 +48,8 @@ const PropertiesPage = () => {
       const params = { page: pagination.page, limit: pagination.limit };
       if (search) params.search = search;
       if (filterStatus) params.statusSaleRent = filterStatus;
-      const res = await propertyService.getList(params);
+      const res = await propertyService.getAdminList(params);
+      console.log(res.data?.properties);  
       setProperties(res.data?.properties || []);
       pagination.setTotal(res.data?.total || 0);
     });
@@ -66,53 +67,59 @@ const PropertiesPage = () => {
       'details.bedrooms': p.details?.bedrooms ?? '', 'details.bathrooms': p.details?.bathrooms ?? '',
       'details.area': p.details?.area ?? p.area ?? '', 'details.furnished': p.details?.furnished ?? false,
       'location.address': p.location?.address ?? '', 'location.city': p.location?.city ?? '',
-      'location.country': p.location?.country ?? 'Egypt',
+      'location.country': p.location?.country ?? 'Egypt', 'location.googleMapsUrl': p.location?.googleMapsUrl ?? '',
     });
     setModalOpen(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await run(async () => {
-      const payload = {
-        name: form.name, description: form.description,
-        price: Number(form.price), statusSaleRent: form.statusSaleRent, propertyType: form.propertyType,
-        availability: 'available',
-        details: {
-          bedrooms: Number(form['details.bedrooms']) || 0,
-          bathrooms: Number(form['details.bathrooms']) || 0,
-          area: Number(form['details.area']) || 0,
-          furnished: Boolean(form['details.furnished']),
-        },
-        location: {
-          address: form['location.address'], city: form['location.city'],
-          country: form['location.country'] || 'Egypt',
-        },
-      };
-      let propertyId = editProp?.id;
-      if (editProp) {
-        await propertyService.updateProperty(editProp.id, payload);
-        toast.success('Property updated!');
-      } else {
-        const created = await propertyService.createProperty(payload);
-        propertyId = created.data?.property?.id;
-        toast.success('Property created!');
-      }
-      if (propertyId) {
-        try {
-          const { main, gallery } = imageDraftRef.current;
-          await propertyService.syncPropertyImages(propertyId, main, gallery);
-        } catch (imgErr) {
-          const msg =
-            imgErr.response?.data?.message ||
-            imgErr.message ||
-            'Image step failed (check backend POST /properties/:id/images and PATCH images).';
-          toast.warn(msg);
+    try {
+      await run(async () => {
+        const payload = {
+          name: form.name, description: form.description,
+          price: Number(form.price), statusSaleRent: form.statusSaleRent, propertyType: form.propertyType,
+          availability: 'available',
+          details: {
+            bedrooms: Number(form['details.bedrooms']) || 0,
+            bathrooms: Number(form['details.bathrooms']) || 0,
+            area: Number(form['details.area']) || 0,
+            furnished: Boolean(form['details.furnished']),
+          },
+          location: {
+            address: form['location.address'], city: form['location.city'],
+            country: form['location.country'] || 'Egypt',
+            googleMapsUrl: form['location.googleMapsUrl'] || '',
+          },
+        };
+        let propertyId = editProp?.id;
+        if (editProp) {
+          await propertyService.updateProperty(editProp.id, payload);
+          toast.success('Property updated!');
+        } else {
+          const created = await propertyService.createProperty(payload);
+          propertyId = created.data?.property?.id;
+          toast.success('Property created!');
         }
-      }
-      setModalOpen(false);
-      load();
-    });
+        if (propertyId) {
+          try {
+            const { main, gallery } = imageDraftRef.current;
+            await propertyService.syncPropertyImages(propertyId, main, gallery);
+          } catch (imgErr) {
+            const msg =
+              imgErr.response?.data?.message ||
+              imgErr.message ||
+              'Image step failed (check backend POST /properties/:id/images and PATCH images).';
+            toast.warn(msg);
+          }
+        }
+        setModalOpen(false);
+        load();
+      });
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to save property';
+      toast.error(msg);
+    }
   };
 
   const handleDelete = async () => {
@@ -120,6 +127,14 @@ const PropertiesPage = () => {
       await propertyService.deactivateProperty(deleteTarget.id);
       toast.success('Property deactivated!');
       setDeleteTarget(null);
+      load();
+    });
+  };
+
+  const handleActivate = async (p) => {
+    await run(async () => {
+      await propertyService.activateProperty(p.id);
+      toast.success('Property activated!');
       load();
     });
   };
@@ -172,7 +187,7 @@ const PropertiesPage = () => {
                 </thead>
                 <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
                   {properties.map((p) => (
-                    <motion.tr key={p.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors group">
+                    <motion.tr key={p.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors">
                       <td className="px-6 py-4">
                         <p className="text-sm font-bold text-slate-700 truncate max-w-[200px]">{p.title}</p>
                         <p className="text-[11px] text-slate-400 font-medium italic">{p.location?.city || '—'}</p>
@@ -184,11 +199,29 @@ const PropertiesPage = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-blue font-black text-sm">{p.formattedPrice}</td>
-                      <td className="px-6 py-4"><Badge color={p.isForSale ? 'blue' : 'green'} className="!rounded-lg text-[10px] font-bold">{p.badgeText}</Badge></td>
                       <td className="px-6 py-4">
-                        <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge color={p.isForSale ? 'blue' : 'green'} className="!rounded-lg text-[10px] font-bold">{p.badgeText}</Badge>
+                          {p.availability === 'sold' && (
+                            <Badge color="rose" className="!rounded-lg text-[10px] font-bold">SOLD</Badge>
+                          )}
+                          {p.details.furnished === false && (
+                            <Badge color="gray" className="!rounded-lg text-[10px] font-bold">UNFURNISHED</Badge>
+                          )}
+                          <Badge color={p.isActive ? 'green' : 'gray'} className="!rounded-lg text-[10px] font-bold">
+                            {p.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          </Badge>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2 justify-end">
                           <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-all">✎</button>
-                          <button onClick={() => setDeleteTarget(p)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all">🗑</button>
+                          {p.isActive && (
+                            <button onClick={() => setDeleteTarget(p)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all">🗑</button>
+                          )}
+                          {!p.isActive && (
+                            <button onClick={() => handleActivate(p)} className="px-3 h-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all text-xs font-bold">Activate</button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>
@@ -243,6 +276,13 @@ const PropertiesPage = () => {
             <Input label="Area (m²)" type="number" value={form['details.area']} onChange={(e) => setF('details.area', e.target.value)} />
             <Input label="City" value={form['location.city']} onChange={(e) => setF('location.city', e.target.value)} />
             <Input label="Address" value={form['location.address']} onChange={(e) => setF('location.address', e.target.value)} />
+            <Input
+              label="Google Maps URL"
+              value={form['location.googleMapsUrl']}
+              onChange={(e) => setF('location.googleMapsUrl', e.target.value)}
+              placeholder="https://maps.google.com/..."
+              className="sm:col-span-2"
+            />
             <div className="sm:col-span-2">
               <Textarea label="Description" value={form.description} onChange={(e) => setF('description', e.target.value)} rows={3} />
             </div>

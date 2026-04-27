@@ -3,8 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authService, userService } from '../../../services/index.js';
 import { getUserIdFromToken, getRole } from '../../../utils/authUtils.js';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 
 const USER_KEY = 'asyad_user';
 
@@ -85,8 +84,6 @@ export const LoginPage = () => {
 
   return (
     <AuthLayout quote="Find your dream home today." sub="Join 10,000+ happy homeowners.">
-
-      <ToastContainer position="bottom-right" autoClose={3500} hideProgressBar />
       <h1 className="font-display text-2xl sm:text-[28px] md:text-[30px] font-bold text-dark mb-2">Welcome Back! 👋</h1>
       <p className="text-sm sm:text-[15px] text-gray mb-6 sm:mb-8">Enter your details to access your account.</p>
 

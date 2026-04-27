@@ -29,8 +29,8 @@ const PropertyCard = ({ property, onFavoriteChange }) => {
   return (
     <div
       className="bg-white border border-border rounded-lg overflow-hidden cursor-pointer
-        transition-all duration-200 hover:-translate-y-[5px] hover:shadow-lg hover:border-transparent group"
-      onClick={() => navigate(`/property/${property.id}`)}
+        transition-all duration-200 hover:-translate-y-[5px] hover:shadow-lg hover:border-transparent group relative"
+      onClick={() => navigate(property.detailPath || `/property/${property.slug || property.id}`)}
     >
       {/* Image */}
       <div className="relative h-[220px] overflow-hidden bg-gradient-to-br from-[#c8dded] to-[#e8f0f8]">
@@ -51,6 +51,16 @@ const PropertyCard = ({ property, onFavoriteChange }) => {
           className="absolute top-[14px] left-[14px] text-[11px] tracking-[0.8px] uppercase"
         >
           {property.badgeText}
+        </Badge>
+        <Badge
+          color={property.availability === 'available' ? 'green' : property.availability === 'unavailable' ? 'gray' : 'rose'}
+          className="absolute top-[14px] left-[110px] text-[11px] tracking-[0.8px] uppercase"
+        >
+          {property.availability === 'available'
+            ? 'Available'
+            : property.availability === 'unavailable'
+              ? 'Unavailable'
+              : 'Available'}
         </Badge>
 
         {/* Favorite button */}
@@ -73,7 +83,7 @@ const PropertyCard = ({ property, onFavoriteChange }) => {
         <h3 className="text-[16px] font-semibold text-dark mb-[5px] whitespace-nowrap overflow-hidden text-ellipsis">{property.title}</h3>
         <p className="text-[13px] text-gray">📍 {property.shortLocation}</p>
         <div className="h-px bg-border my-3" />
-        <p className="text-[13px] text-dark">{property.specsSummary}</p>
+        <p className="text-[13px] text-dark">{property.specsSummary}   { property.details.furnished === true   ? property.isForSale === 'rent' ? "" :' - Furnished' : ' - Unfurnished'  }</p>
       </div>
     </div>
   );
