@@ -65,7 +65,9 @@ export function getUserIdFromToken() {
 
 export function getRole() {
   const payload = decodeTokenPayload();
-  return payload?.role ?? null;
+  if (payload?.role) return payload.role;
+  const user = getStoredUser();
+  return user?.role ?? null;
 }
 
 export function isAuthenticated() {

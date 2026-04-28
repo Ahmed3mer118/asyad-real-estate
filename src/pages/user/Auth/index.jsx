@@ -72,7 +72,8 @@ export const LoginPage = () => {
       toast.success('Welcome back! 👋');
       const role = (user.role || '').toLowerCase();
       if (role === 'admin') {
-        navigate(from && from !== '/login' ? from : '/dashboard', { replace: true });
+        const adminTarget = from?.startsWith('/dashboard') ? from : '/dashboard';
+        navigate(adminTarget, { replace: true });
       } else {
         navigate(from && from !== '/login' ? from : '/', { replace: true });
       }
@@ -141,7 +142,7 @@ export const LoginPage = () => {
 /* ─── REGISTER ─── */
 export const RegisterPage = () => {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', role: 'User', agree: false });
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', role: 'user', agree: false });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -151,7 +152,8 @@ export const RegisterPage = () => {
     setLoading(true);
     try {
       await authService.register({
-        username: form.fullName,
+        userName: form.fullName,
+        fullName: form.fullName,
         email: form.email,
         password: form.password,
         role: form.role,
@@ -159,7 +161,12 @@ export const RegisterPage = () => {
       toast.success('Account created! Check your email for the verification code.');
       navigate('/verify-email', { state: { email: form.email }, replace: true });
     } catch (err) {
-      toast.error(err.response?.data?.message || err.response?.data?.error || 'Registration failed');
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Registration failed';
+      if (msg.toLowerCase().includes('failed to send verification email')) {
+        toast.error('تم إنشاء الحساب لكن إرسال كود التفعيل من السيرفر فشل. تواصل مع فريق الباك لضبط خدمة البريد.');
+      } else {
+        toast.error(msg);
+      }
     } finally { setLoading(false); }
   };
 
@@ -198,8 +205,8 @@ export const RegisterPage = () => {
           <label className="text-[13px] font-semibold text-dark">I am a</label>
           <select className={`${inputCls} select-arrow cursor-pointer`}
             value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
-            <option value="User">Tenant / Buyer</option>
-            <option value="Owner">Property Owner</option>
+            <option value="user">Tenant / Buyer</option>
+            <option value="owner">Property Owner</option>
           </select>
         </div>
 

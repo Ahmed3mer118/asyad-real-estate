@@ -19,12 +19,30 @@ class AuthService extends ApiService {
   }
 
   async register(payload) {
-    const { data } = await this.client.post('/auth/register', payload);
+    const fullName = String(
+      payload?.fullName ?? payload?.userName ?? payload?.username ?? ''
+    ).trim();
+    const role = String(payload?.role ?? 'user').trim().toLowerCase();
+    const requestBody = {
+      userName: fullName,
+      fullName,
+      email: String(payload?.email ?? '').trim().toLowerCase(),
+      password: String(payload?.password ?? ''),
+      role,
+    };
+    const { data } = await this.client.post('/auth/register', requestBody);
     return data;
   }
 
   async verifyCode(email, code) {
-    const { data } = await this.client.post('/auth/verify-code', { email, code });
+    const cleanEmail = String(email ?? '').trim().toLowerCase();
+    const cleanCode = String(code ?? '').trim();
+    // Send both keys to support different backend naming conventions.
+    const { data } = await this.client.post('/auth/verify-code', {
+      email: cleanEmail,
+      code: cleanCode,
+      verificationCode: cleanCode,
+    });
     return data;
   }
 
