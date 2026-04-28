@@ -31,6 +31,9 @@ const PropertiesPage = () => {
   const [properties, setProperties] = useState([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
+  const [furnishedFilter, setFurnishedFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editProp, setEditProp] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -48,12 +51,27 @@ const PropertiesPage = () => {
       const params = { page: pagination.page, limit: pagination.limit };
       if (search) params.search = search;
       if (filterStatus) params.statusSaleRent = filterStatus;
+      if (availabilityFilter) params.availability = availabilityFilter;
+      if (activeFilter) params.isActive = activeFilter === 'active';
+      if (furnishedFilter) params.furnished = furnishedFilter === 'furnished';
       const res = await propertyService.getAdminList(params);
-      console.log(res.data?.properties);  
       setProperties(res.data?.properties || []);
       pagination.setTotal(res.data?.total || 0);
     });
-  }, [pagination.page, search, filterStatus]);
+  }, [pagination.page, search, filterStatus, availabilityFilter, activeFilter, furnishedFilter]);
+
+  const filteredProperties = properties.filter((p) => {
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q
+      || (p.title || p.name || '').toLowerCase().includes(q)
+      || (p.location?.city || '').toLowerCase().includes(q);
+    const matchesStatus = !filterStatus || (p.statusSaleRent || '').toLowerCase() === filterStatus;
+    const matchesAvailability = !availabilityFilter || (p.availability || '').toLowerCase() === availabilityFilter;
+    const matchesActive = !activeFilter || (activeFilter === 'active' ? !!p.isActive : !p.isActive);
+    const furnished = p.details?.furnished;
+    const matchesFurnished = !furnishedFilter || (furnishedFilter === 'furnished' ? furnished === true : furnished === false);
+    return matchesSearch && matchesStatus && matchesAvailability && matchesActive && matchesFurnished;
+  });
 
   useEffect(() => { load(); }, [load]);
 
@@ -145,12 +163,12 @@ const PropertiesPage = () => {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex flex-1 items-center gap-3 max-w-md">
+          <div className="flex flex-1 items-center gap-3 flex-wrap">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
               <input
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border-0 rounded-xl text-sm focus:ring-2 focus:ring-blue/20 transition-all outline-none"
-                placeholder="Search properties..."
+                placeholder="Search by property name or city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -164,6 +182,34 @@ const PropertiesPage = () => {
               <option value="sale">For Sale</option>
               <option value="rent">For Rent</option>
             </select>
+            <select
+              className="px-4 py-2 bg-slate-50 border-0 rounded-xl text-sm focus:ring-2 focus:ring-blue/20 transition-all outline-none cursor-pointer"
+              value={availabilityFilter}
+              onChange={(e) => setAvailabilityFilter(e.target.value)}
+            >
+              <option value="">Availability</option>
+              <option value="available">Available</option>
+              <option value="sold">Sold</option>
+              <option value="unavailable">Unavailable</option>
+            </select>
+            <select
+              className="px-4 py-2 bg-slate-50 border-0 rounded-xl text-sm focus:ring-2 focus:ring-blue/20 transition-all outline-none cursor-pointer"
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
+            >
+              <option value="">Activity</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <select
+              className="px-4 py-2 bg-slate-50 border-0 rounded-xl text-sm focus:ring-2 focus:ring-blue/20 transition-all outline-none cursor-pointer"
+              value={furnishedFilter}
+              onChange={(e) => setFurnishedFilter(e.target.value)}
+            >
+              <option value="">Furnished</option>
+              <option value="furnished">Furnished</option>
+              <option value="unfurnished">Unfurnished</option>
+            </select>
           </div>
           <Button onClick={openCreate} className="!rounded-xl !shadow-lg !shadow-blue/10">Add Property</Button>
         </div>
@@ -171,7 +217,7 @@ const PropertiesPage = () => {
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-24"><Spinner size="lg" /></div>
-          ) : properties.length === 0 ? (
+          ) : filteredProperties.length === 0 ? (
             <Empty icon="🏠" title="No properties found" />
           ) : (
             <div className="overflow-x-auto">
@@ -186,7 +232,7 @@ const PropertiesPage = () => {
                   </tr>
                 </thead>
                 <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
-                  {properties.map((p) => (
+                  {filteredProperties.map((p) => (
                     <motion.tr key={p.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors">
                       <td className="px-6 py-4">
                         <p className="text-sm font-bold text-slate-700 truncate max-w-[200px]">{p.title}</p>

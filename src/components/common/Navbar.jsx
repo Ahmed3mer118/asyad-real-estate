@@ -44,7 +44,7 @@ const Navbar = ({ transparent = false }) => {
     { to: '/contact', label: 'Contact' },
   ];
 
-  const imgURL ="./asyad-logo.png"
+  const imgURL = '/asyad-logo.png';
 
   const isSolid = !transparent || scrolled;
 
@@ -129,7 +129,6 @@ const Navbar = ({ transparent = false }) => {
                       </Link>
                     )}
                     <Link to="/profile" className="flex items-center gap-[10px] px-5 py-[10px] text-[14px] text-dark hover:bg-gray-light transition-colors duration-150 cursor-pointer w-full">👤 Profile</Link>
-                    <Link to="/my-requests" className="flex items-center gap-[10px] px-5 py-[10px] text-[14px] text-dark hover:bg-gray-light transition-colors duration-150 cursor-pointer w-full">📋 My Requests</Link>
                     <Link to="/my-appointments" className="flex items-center gap-[10px] px-5 py-[10px] text-[14px] text-dark hover:bg-gray-light transition-colors duration-150 cursor-pointer w-full">📅 My Appointments</Link>
                     <Link to="/my-payments" className="flex items-center gap-[10px] px-5 py-[10px] text-[14px] text-dark hover:bg-gray-light transition-colors duration-150 cursor-pointer w-full">💳 My Payments</Link>
                     <Link to="/favorites" className="flex items-center gap-[10px] px-5 py-[10px] text-[14px] text-dark hover:bg-gray-light transition-colors duration-150 cursor-pointer w-full">❤️ Favorites</Link>
@@ -192,7 +191,6 @@ const Navbar = ({ transparent = false }) => {
                 <Link to="/dashboard" className="flex items-center gap-2 py-3 px-2 text-[15px] text-dark border-b border-gray-light">📊 Dashboard</Link>
               )}
               <Link to="/profile" className="flex items-center gap-2 py-3 px-2 text-[15px] text-dark border-b border-gray-light">👤 Profile</Link>
-              <Link to="/my-requests" className="flex items-center gap-2 py-3 px-2 text-[15px] text-dark border-b border-gray-light">📋 My Requests</Link>
               <Link to="/my-appointments" className="flex items-center gap-2 py-3 px-2 text-[15px] text-dark border-b border-gray-light">📅 My Appointments</Link>
               <Link to="/my-payments" className="flex items-center gap-2 py-3 px-2 text-[15px] text-dark border-b border-gray-light">💳 My Payments</Link>
               <Link to="/favorites" className="flex items-center gap-2 py-3 px-2 text-[15px] text-dark border-b border-gray-light">❤️ Favorites</Link>

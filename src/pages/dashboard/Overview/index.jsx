@@ -11,15 +11,38 @@ import {
 } from 'recharts';
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+const PIE_LABELS = ['Villa', 'Apartment', 'Townhouse', 'Office', 'Land'];
 
-const ACTIVITY_CHART = [
-  { month: 'Jan', listings: 12, requests: 8 },
-  { month: 'Feb', listings: 19, requests: 14 },
-  { month: 'Mar', listings: 15, requests: 18 },
-  { month: 'Apr', listings: 22, requests: 16 },
-  { month: 'May', listings: 28, requests: 24 },
-  { month: 'Jun', listings: 35, requests: 30 },
-];
+const toNumber = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const normalizeCategoryCounts = (raw) => {
+  const out = {};
+  PIE_LABELS.forEach((label) => { out[label] = 0; });
+  if (!raw) return out;
+
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => {
+      const key = String(item?.name || item?.type || item?.propertyType || '').trim().toLowerCase();
+      const value = toNumber(item?.count ?? item?.value ?? item?.total);
+      const match = PIE_LABELS.find((label) => label.toLowerCase() === key);
+      if (match) out[match] += value;
+    });
+    return out;
+  }
+
+  if (typeof raw === 'object') {
+    Object.entries(raw).forEach(([k, v]) => {
+      const key = String(k).trim().toLowerCase();
+      const match = PIE_LABELS.find((label) => label.toLowerCase() === key);
+      if (match) out[match] += toNumber(v);
+    });
+  }
+
+  return out;
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -39,19 +62,22 @@ const OverviewPage = () => {
   const [stats, setStats] = useState(null);
   const [recentRequests, setRecentRequests] = useState([]);
   const [recentProps, setRecentProps] = useState([]);
+  const [chartProps, setChartProps] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [statsRes, reqRes, propRes] = await Promise.allSettled([
+        const [statsRes, reqRes, propRes, chartPropRes] = await Promise.allSettled([
           webhookService.getStats(),
           requestService.getAllRequests({ limit: 5, sort: '-createdAt' }),
           propertyService.getList({ limit: 5, sort: '-createdAt' }),
+          propertyService.getList({ limit: 500 }),
         ]);
         if (statsRes.status === 'fulfilled') setStats(statsRes.value?.data);
         if (reqRes.status === 'fulfilled') setRecentRequests(reqRes.value?.data?.requests || []);
         if (propRes.status === 'fulfilled') setRecentProps(propRes.value?.data?.properties || []);
+        if (chartPropRes.status === 'fulfilled') setChartProps(chartPropRes.value?.data?.properties || []);
       } catch { }
       setLoading(false);
     };
@@ -65,12 +91,28 @@ const OverviewPage = () => {
     { label: 'Pending Appts', value: stats?.appointments ?? '—', icon: '📅', color: 'red', sub: 'Pending appointments' },
   ];
 
-  const PIE_DATA = [
-    { name: 'Villa', value: stats?.categories?.Villa || 120 },
-    { name: 'Apartment', value: stats?.categories?.Apartment || 340 },
-    { name: 'Townhouse', value: stats?.categories?.Townhouse || 85 },
-    { name: 'Office', value: stats?.categories?.Office || 42 },
-    { name: 'Land', value: stats?.categories?.Land || 18 },
+  const categoriesFromStats = normalizeCategoryCounts(
+    stats?.categories
+    || stats?.propertyTypes
+    || stats?.distribution
+    || stats?.categoryDistribution
+  );
+  const statsTotal = Object.values(categoriesFromStats).reduce((sum, n) => sum + n, 0);
+  const fallbackCounts = PIE_LABELS.reduce((acc, label) => {
+    const count = chartProps.filter((p) => {
+      const type = String(p?.propertyType || p?.type || '').trim().toLowerCase();
+      return type === label.toLowerCase();
+    }).length;
+    acc[label] = count;
+    return acc;
+  }, {});
+  const sourceCounts = statsTotal > 0 ? categoriesFromStats : fallbackCounts;
+  const PIE_DATA = PIE_LABELS.map((label) => ({ name: label, value: sourceCounts[label] || 0 }));
+
+  const ACTIVITY_CHART = [
+    { month: 'Listings', listings: Number(stats?.properties || 0), requests: 0 },
+    { month: 'Requests', listings: 0, requests: Number(stats?.requests || 0) },
+    { month: 'Appointments', listings: Number(stats?.appointments || 0), requests: Number(stats?.appointments || 0) },
   ];
 
   const totalPie = PIE_DATA.reduce((acc, curr) => acc + curr.value, 0);

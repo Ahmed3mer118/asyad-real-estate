@@ -1,5 +1,5 @@
 // components/property/PropertyCard.jsx — Tailwind CSS version
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../common/index';
 import { favoriteService } from '../../services/index.js';
@@ -7,23 +7,39 @@ import { getToken } from '../../utils/authUtils.js';
 import { toast } from 'react-toastify';
 
 const PropertyCard = ({ property, onFavoriteChange }) => {
-  console.log(property);
   const navigate = useNavigate();
   const isAuthenticated = !!getToken();
   const [favorited, setFavorited] = useState(property.isFavorited);
   const [toggling, setToggling] = useState(false);
+  const availabilityValue = (property.availability || '').toLowerCase();
+  const availabilityLabel = availabilityValue === 'sold'
+    ? 'Sold'
+    : availabilityValue === 'rented'
+      ? 'Rented'
+      : availabilityValue === 'unavailable'
+        ? (property.statusSaleRent === 'rent' ? 'Rented' : 'Unavailable')
+        : 'Available';
+  const availabilityColor = availabilityValue === 'available' ? 'green' : availabilityValue === 'sold' ? 'rose' : 'gray';
+
+  useEffect(() => {
+    setFavorited(!!property.isFavorited);
+  }, [property.isFavorited, property.id]);
 
   const handleFavorite = async (e) => {
     e.stopPropagation();
     if (!isAuthenticated) { navigate('/login'); return; }
     if (toggling) return;
+    const next = !favorited;
     setToggling(true);
+    setFavorited(next);
     try {
       if (favorited) await favoriteService.remove(property.id);
       else await favoriteService.add(property.id);
-      setFavorited((f) => !f);
       onFavoriteChange?.();
-    } catch { toast.error('Failed to update favorites'); }
+    } catch {
+      setFavorited(!next);
+      toast.error('Failed to update favorites');
+    }
     finally { setToggling(false); }
   };
 
@@ -54,14 +70,10 @@ const PropertyCard = ({ property, onFavoriteChange }) => {
           {property.badgeText}
         </Badge>
         <Badge
-          color={property.availability === 'available' ? 'green' : property.availability === 'unavailable' ? 'gray' : 'rose'}
+          color={availabilityColor}
           className="absolute top-[14px] left-[110px] text-[11px] tracking-[0.8px] uppercase"
         >
-          {property.availability === 'available'
-            ? 'Available'
-            : property.availability === 'unavailable'
-              ? 'Unavailable'
-              : 'Available'}
+          {availabilityLabel}
         </Badge>
 
         {/* Favorite button */}

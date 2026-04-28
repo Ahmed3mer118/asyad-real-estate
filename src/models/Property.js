@@ -56,6 +56,15 @@ export class Property {
     this.createdAt = data.createdAt ? new Date(data.createdAt) : null;
     this.updatedAt = data.updatedAt ? new Date(data.updatedAt) : null;
     this.owner = data.owner || null;
+    this.isFavorited = Boolean(
+      data.isFavorited
+      ?? data.isFavorite
+      ?? data.favorited
+      ?? data.favorite
+      ?? data.isInFavorites
+      ?? data.inFavorites
+      ?? false
+    );
   }
 
   get title() {

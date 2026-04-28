@@ -90,7 +90,14 @@ export const UsersPage = () => {
   };
 
   const isAlreadyEmployee = editUser && employees.some((e) => toId(e.userId) === editUser.id);
-  const filteredUsers = roleFilter ? users.filter((u) => (u.role || '') === roleFilter) : users;
+  const filteredUsers = users.filter((u) => {
+    const roleOk = !roleFilter || (u.role || '') === roleFilter;
+    const q = search.trim().toLowerCase();
+    const searchOk = !q
+      || (u.fullName || u.userName || '').toLowerCase().includes(q)
+      || (u.email || '').toLowerCase().includes(q);
+    return roleOk && searchOk;
+  });
 
   const addToEmployees = async () => {
     if (!editUser) return;
@@ -136,9 +143,7 @@ export const UsersPage = () => {
               <option value="Admin">Admin</option>
             </select>
           </div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-            {roleFilter ? `Role: ${roleFilter} — ${filteredUsers.length}` : `Total: ${pagination.total}`}
-          </p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{`Total shown: ${filteredUsers.length}`}</p>
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
@@ -681,6 +686,7 @@ const statusLabel = (s) => (s && s.charAt(0).toUpperCase() + s.slice(1).toLowerC
    ════════════════════════════════════════════ */
 export const PaymentsPage = () => {
   const [payments, setPayments] = useState([]);
+  const [paymentSearch, setPaymentSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -759,15 +765,35 @@ export const PaymentsPage = () => {
     return total ? `${type} ${total}` : (t.id ? String(t.id).slice(-8) : '—');
   };
 
+  const filteredPayments = payments.filter((p) => {
+    const q = paymentSearch.trim().toLowerCase();
+    if (!q) return true;
+    const text = `${payerName(p)} ${transactionRefLabel(p)} ${p.formattedAmount || ''} ${methodLabel(p.method)} ${p.transaction?.property?.name || p.transaction?.property?.title || ''}`.toLowerCase();
+    return text.includes(q);
+  });
+  const filteredPaymentsTotal = filteredPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
   return (
     <DashboardLayout>
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-50">
-          <h3 className="text-lg font-bold text-slate-800">Payments</h3>
+        <div className="p-6 border-b border-slate-50 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-bold text-slate-800">Payments</h3>
+            <span className="text-xs font-bold text-blue bg-blue/10 px-3 py-1 rounded-full">
+              Total Amount: EGP {new Intl.NumberFormat('en-EG').format(filteredPaymentsTotal)}
+            </span>
+          </div>
+          <input
+            type="text"
+            placeholder="Search payer, property, method, or reference..."
+            className="w-full lg:w-[420px] px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all"
+            value={paymentSearch}
+            onChange={(e) => setPaymentSearch(e.target.value)}
+          />
         </div>
         {loading ? (
           <div className="flex justify-center py-24"><Spinner size="lg" /></div>
-        ) : payments.length === 0 ? (
+        ) : filteredPayments.length === 0 ? (
           <Empty icon="💳" title="No payments found" />
         ) : (
           <div className="overflow-x-auto">
@@ -782,7 +808,7 @@ export const PaymentsPage = () => {
                 </tr>
               </thead>
               <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
-                {payments.map((p) => (
+                {filteredPayments.map((p) => (
                   <motion.tr
                     key={p.id}
                     variants={tableRowVariants}
@@ -1084,6 +1110,11 @@ export const EmployeesPage = () => {
   };
 
   const setF = (k, v) => setFormState((f) => ({ ...f, [k]: v }));
+  const filteredEmployees = employees.filter((e) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (e.name || '').toLowerCase().includes(q);
+  });
 
   useEffect(() => {
     if (!selectedEmp) {
@@ -1124,8 +1155,8 @@ export const EmployeesPage = () => {
           <div className="relative flex-1 max-w-md">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
             <input
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border-0 rounded-xl text-sm outline-none"
-              placeholder="Search team members..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all"
+              placeholder="Filter employees by name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -1136,7 +1167,7 @@ export const EmployeesPage = () => {
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-24"><Spinner size="lg" /></div>
-          ) : employees.length === 0 ? (
+          ) : filteredEmployees.length === 0 ? (
             <Empty icon="👷" title="No employees yet" />
           ) : (
             <div className="overflow-x-auto">
@@ -1150,7 +1181,7 @@ export const EmployeesPage = () => {
                   </tr>
                 </thead>
                 <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
-                  {employees.map((e) => (
+                  {filteredEmployees.map((e) => (
                     <motion.tr
                     key={e.id}
                     variants={tableRowVariants}
@@ -1181,9 +1212,9 @@ export const EmployeesPage = () => {
                         )}
                       </td>
                       <td className="px-6 py-4" onClick={(ev) => ev.stopPropagation()}>
-                        <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEdit(e)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-all">✎</button>
-                          <button onClick={() => setDeleteTarget(e)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all">Deactivate</button>
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => openEdit(e)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-all" title="Edit employee">✎</button>
+                          <button onClick={() => setDeleteTarget(e)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all" title="Deactivate employee">⛔</button>
                         </div>
                       </td>
                     </motion.tr>
@@ -1338,6 +1369,17 @@ const INSTALLMENT_FREQUENCIES = [
   { value: 'semi_annual', label: 'Every 6 months', defaultCount: 2 },
   { value: 'yearly', label: 'Yearly', defaultCount: 1 },
 ];
+const addMonths = (date, months) => {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+};
+const toFrequencyMonths = (frequency) => {
+  if (frequency === 'quarterly') return 3;
+  if (frequency === 'semi_annual') return 6;
+  if (frequency === 'yearly') return 12;
+  return 1;
+};
 
 export const TransactionsPage = () => {
   const [transactions, setTransactions] = useState([]);
@@ -1414,7 +1456,37 @@ export const TransactionsPage = () => {
   const handleSubmit = async (evt) => {
     evt.preventDefault();
     await run(async () => {
+      const txType = (form.transactionType || '').toLowerCase();
+      if (txType === 'rent') {
+        const allTx = await transactionService.getTransactions({ limit: 500 }).catch(() => ({ data: { transactions: [] } }));
+        const txList = allTx.data?.transactions || [];
+        const samePropertyRents = txList.filter((t) => (
+          String(toId(t.propertyId)) === String(form.propertyId)
+          && (t.transactionType || '').toLowerCase() === 'rent'
+        ));
+        let hasActiveRent = false;
+        for (const tx of samePropertyRents) {
+          const txId = String(toId(tx.id || tx._id || tx));
+          const instRes = await installmentService.getInstallments({ transactionId: txId, limit: 200 }).catch(() => ({ data: { installments: [] } }));
+          const list = instRes.data?.installments || [];
+          if (list.length === 0) { hasActiveRent = true; break; }
+          const dueDates = list.map((i) => new Date(i.dueDate)).filter((dt) => !Number.isNaN(dt.getTime())).sort((a, b) => a - b);
+          if (dueDates.length === 0) { hasActiveRent = true; break; }
+          const lastDue = dueDates[dueDates.length - 1];
+          if (lastDue >= new Date()) { hasActiveRent = true; break; }
+        }
+        if (hasActiveRent) {
+          toast.error('This property is already rented. You cannot create another rent transaction now.');
+          return;
+        }
+      }
       await transactionService.create(form);
+      if (txType === 'rent') {
+        await propertyService.updateProperty(form.propertyId, { availability: 'unavailable' }).catch(() => {});
+      }
+      if (txType === 'sale') {
+        await propertyService.updateProperty(form.propertyId, { availability: 'sold' }).catch(() => {});
+      }
       toast.success('Transaction created!');
       setModalOpen(false);
       load();
@@ -1489,6 +1561,39 @@ export const TransactionsPage = () => {
 
   const handleGenerateInstallments = async (evt) => {
     evt.preventDefault();
+    if (selectedTransForGen && (selectedTransForGen.transactionType || '').toLowerCase() === 'rent') {
+      const selectedTxId = String(toId(selectedTransForGen) || selectedTransForGen.id || selectedTransForGen._id || '');
+      const propertyId = String(toId(selectedTransForGen.propertyId) || '');
+      if (selectedTxId && propertyId) {
+        const [y, m, d] = String(genForm.startDate || '').split('-').map(Number);
+        const start = new Date(y, (m || 1) - 1, d || 1);
+        const monthsStep = toFrequencyMonths(genForm.frequency);
+        const end = addMonths(start, Math.max(0, (Number(genForm.numberOfInstallments) || 1) - 1) * monthsStep);
+        if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+          const allTx = await transactionService.getTransactions({ limit: 500 }).catch(() => ({ data: { transactions: [] } }));
+          const txList = (allTx.data?.transactions || []).filter((t) => (
+            String(toId(t.propertyId)) === propertyId
+            && (t.transactionType || '').toLowerCase() === 'rent'
+            && String(toId(t.id || t._id || t)) !== selectedTxId
+          ));
+          for (const tx of txList) {
+            const txId = String(toId(tx.id || tx._id || tx));
+            const instRes = await installmentService.getInstallments({ transactionId: txId, limit: 200 }).catch(() => ({ data: { installments: [] } }));
+            const list = instRes.data?.installments || [];
+            if (list.length === 0) continue;
+            const dueDates = list.map((i) => new Date(i.dueDate)).filter((dt) => !Number.isNaN(dt.getTime())).sort((a, b) => a - b);
+            if (dueDates.length === 0) continue;
+            const otherStart = dueDates[0];
+            const otherEnd = dueDates[dueDates.length - 1];
+            const overlap = start <= otherEnd && end >= otherStart;
+            if (overlap) {
+              toast.error('Cannot generate rent installments: overlaps with another rent period for this property.');
+              return;
+            }
+          }
+        }
+      }
+    }
     if (existingGenInstallments.length > 0 && !genForm.replaceExisting) {
       toast.error('This transaction already has installments. Check "Replace existing installments" to update the schedule (or use "Update dates only" below).');
       return;
@@ -1787,6 +1892,8 @@ const EMPTY_TASK = { employeeId: '', propertyId: '', title: '', description: '',
 
 export const TasksPage = () => {
   const [tasks, setTasks] = useState([]);
+  const [taskSearch, setTaskSearch] = useState('');
+  const [taskMonth, setTaskMonth] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [form, setFormState] = useState(EMPTY_TASK);
@@ -1963,6 +2070,36 @@ export const TasksPage = () => {
     }
   }, []);
 
+  const checkTaskConflict = useCallback(async ({ employeeId, propertyId, dueISO }) => {
+    if (!dueISO) return null;
+    const due = new Date(dueISO);
+    if (Number.isNaN(due.getTime())) return null;
+    const targetMs = due.getTime();
+    const targetEmp = String(toId(employeeId) || '');
+    const targetProp = String(toId(propertyId) || '');
+    const minuteTolerance = 60 * 1000;
+    try {
+      const res = await taskService.getAssignedTasks({ limit: 500 });
+      const list = res.data?.tasks || [];
+      const conflictTask = list.find((t) => {
+        const id = String(toId(t) || t.id || t._id || '');
+        if (editingTaskId && id === String(editingTaskId)) return false;
+        const dueAt = t.dueDate ? new Date(t.dueDate) : null;
+        if (!dueAt || Number.isNaN(dueAt.getTime())) return false;
+        if (Math.abs(dueAt.getTime() - targetMs) >= minuteTolerance) return false;
+        const tEmp = String(toId(t.employeeId || t.employee) || '');
+        const tProp = String(toId(t.propertyId || t.property) || '');
+        if (targetProp && tProp && targetProp === tProp && tEmp && tEmp !== targetEmp) return true;
+        if (tEmp && tEmp !== targetEmp) return true;
+        if (tEmp && tEmp === targetEmp) return true;
+        return false;
+      });
+      return conflictTask || null;
+    } catch {
+      return null;
+    }
+  }, [editingTaskId]);
+
   const handleSubmit = async (evt) => {
     evt.preventDefault();
     setConflictError(null);
@@ -1977,6 +2114,18 @@ export const TasksPage = () => {
       setConflictError(msg);
       toast.warning('Task not added — conflict with a viewing.');
       notificationService.create({ title: 'Task not added — conflict', message: msg, type: 'warning' }).catch(() => {});
+      return;
+    }
+    const taskConflict = await checkTaskConflict({ employeeId: form.employeeId, propertyId: form.propertyId, dueISO });
+    if (taskConflict) {
+      const otherEmp = taskEmployeeLabel(taskConflict.employeeId || taskConflict);
+      const sameProp = String(toId(taskConflict.propertyId || taskConflict.property) || '') === String(toId(form.propertyId) || '');
+      const msg = sameProp
+        ? `This slot is already assigned to another employee for the same property (${otherEmp}).`
+        : `This date and time is already assigned to another employee (${otherEmp}).`;
+      setConflictError(msg);
+      toast.warning('Task not added — conflict with another employee task.');
+      notificationService.create({ title: 'Task conflict', message: msg, type: 'warning' }).catch(() => {});
       return;
     }
     const payload = {
@@ -2007,19 +2156,46 @@ export const TasksPage = () => {
   };
 
   const setF = (k, v) => setFormState((f) => ({ ...f, [k]: v }));
+  const filteredTasks = tasks.filter((t) => {
+    const employee = taskEmployeeLabel(t.employeeId || t).toLowerCase();
+    const title = (t.title || '').toLowerCase();
+    const q = taskSearch.trim().toLowerCase();
+    const searchOk = !q || employee.includes(q) || title.includes(q);
+    if (!searchOk) return false;
+    if (!taskMonth) return true;
+    const due = t.dueDate ? new Date(t.dueDate) : null;
+    if (!due || Number.isNaN(due.getTime())) return false;
+    const monthKey = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}`;
+    return monthKey === taskMonth;
+  });
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-800">Task Management</h2>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center w-full">
+            <h2 className="text-xl font-bold text-slate-800">Task Management</h2>
+            <input
+              type="text"
+              placeholder="Search by employee or task title..."
+              className="sm:ml-4 w-full sm:max-w-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all"
+              value={taskSearch}
+              onChange={(e) => setTaskSearch(e.target.value)}
+            />
+            <input
+              type="month"
+              className="w-full sm:w-auto px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all"
+              value={taskMonth}
+              onChange={(e) => setTaskMonth(e.target.value)}
+            />
+          </div>
           <Button onClick={openCreate}>Assign Task</Button>
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-24"><Spinner size="lg" /></div>
-          ) : tasks.length === 0 ? (
+          ) : filteredTasks.length === 0 ? (
             <Empty icon="📋" title="No active tasks" />
           ) : (
             <div className="overflow-x-auto">
@@ -2034,7 +2210,7 @@ export const TasksPage = () => {
                   </tr>
                 </thead>
                 <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
-                  {tasks.map((t) => {
+                  {filteredTasks.map((t) => {
                     const due = t.dueDate ? (t.dueDate instanceof Date ? t.dueDate : new Date(t.dueDate)) : null;
                     const dueStr = due && !Number.isNaN(due.getTime())
                       ? `${due.toLocaleDateString('en-EG')} ${due.toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit' })}`
@@ -2074,7 +2250,7 @@ export const TasksPage = () => {
           <Input label="Description" value={form.description} onChange={(e) => setF('description', e.target.value)} required />
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Employee (search then select)</label>
-            <input type="text" placeholder="Search employee..." className="w-full mb-2 px-4 py-2 border rounded-xl text-sm" value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} />
+            <input type="text" placeholder="Search employee..." className="w-full mb-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all" value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} />
             <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={typeof form.employeeId === 'string' ? form.employeeId : toId(form.employeeId) || ''} onChange={(e) => { setF('employeeId', e.target.value); setConflictError(null); }} required>
               <option value="">— Select employee —</option>
               {filteredEmps.map((e) => (
@@ -2084,7 +2260,7 @@ export const TasksPage = () => {
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Property (optional — search then select)</label>
-            <input type="text" placeholder="Search property..." className="w-full mb-2 px-4 py-2 border rounded-xl text-sm" value={propSearch} onChange={(e) => setPropSearch(e.target.value)} />
+            <input type="text" placeholder="Search property..." className="w-full mb-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all" value={propSearch} onChange={(e) => setPropSearch(e.target.value)} />
             <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={form.propertyId} onChange={(e) => setF('propertyId', e.target.value)}>
               <option value="">— Optional —</option>
               {filteredProps.map((p) => (
@@ -2116,6 +2292,8 @@ export const TasksPage = () => {
 export const EvaluationsPage = () => {
   const [evals, setEvals] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [evalSearch, setEvalSearch] = useState('');
+  const [evalMonth, setEvalMonth] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState({ employeeId: '', rating: 5, comments: '' });
   const { loading, run } = useAsync();
@@ -2186,16 +2364,85 @@ export const EvaluationsPage = () => {
     return new Date(d).toLocaleDateString('en-EG', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  const monthKey = (e) => {
+    const d = e.evaluationDate || e.createdAt;
+    if (!d) return '';
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return '';
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const monthLabel = (key) => {
+    if (!key || key === 'unknown') return 'Unknown';
+    const [y, m] = key.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, 1).toLocaleDateString('en-EG', { month: 'long', year: 'numeric' });
+  };
+
+  const monthlyBuckets = useMemo(() => {
+    const buckets = {};
+    evals.forEach((e) => {
+      const key = monthKey(e) || 'unknown';
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(e);
+    });
+    return Object.entries(buckets)
+      .map(([key, list]) => ({
+        key,
+        count: list.length,
+        avg: list.reduce((sum, item) => sum + (Number(item.rating) || 0), 0) / (list.length || 1),
+      }))
+      .sort((a, b) => (a.key < b.key ? 1 : -1));
+  }, [evals]);
+
+  const filteredEvals = evals.filter((e) => {
+    const q = evalSearch.trim().toLowerCase();
+    const emp = employeeName(e).toLowerCase();
+    const searchOk = !q || emp.includes(q);
+    if (!searchOk) return false;
+    if (!evalMonth) return true;
+    return monthKey(e) === evalMonth;
+  });
+
   return (
     <DashboardLayout>
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex items-center justify-between flex-wrap gap-4">
-          <h3 className="text-lg font-bold text-slate-800">Evaluations (from customers & admin)</h3>
-          <Button size="sm" onClick={() => setAddModalOpen(true)}>Add evaluation (admin)</Button>
+        <div className="p-6 border-b border-slate-50 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <h3 className="text-lg font-bold text-slate-800">Evaluations (from customers & admin)</h3>
+            <Button size="sm" onClick={() => setAddModalOpen(true)}>Add evaluation (admin)</Button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <input
+              type="text"
+              placeholder="Search employee..."
+              className="w-full sm:w-72 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all"
+              value={evalSearch}
+              onChange={(e) => setEvalSearch(e.target.value)}
+            />
+            <input
+              type="month"
+              className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all"
+              value={evalMonth}
+              onChange={(e) => setEvalMonth(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setEvalMonth('')} className={`px-3 py-1 rounded-full text-xs font-bold ${evalMonth === '' ? 'bg-blue text-white' : 'bg-slate-100 text-slate-600'}`}>All months</button>
+            {monthlyBuckets.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setEvalMonth(m.key === 'unknown' ? '' : m.key)}
+                className={`px-3 py-1 rounded-full text-xs font-bold ${evalMonth === m.key ? 'bg-blue text-white' : 'bg-slate-100 text-slate-600'}`}
+                title={`Avg: ${m.avg.toFixed(1)} / 5`}
+              >
+                {monthLabel(m.key)} ({m.count})
+              </button>
+            ))}
+          </div>
         </div>
         {loading ? (
           <div className="flex justify-center py-24"><Spinner size="lg" /></div>
-        ) : evals.length === 0 ? (
+        ) : filteredEvals.length === 0 ? (
           <Empty icon="⭐" title="No evaluations found" />
         ) : (
           <div className="overflow-x-auto">
@@ -2210,7 +2457,7 @@ export const EvaluationsPage = () => {
                 </tr>
               </thead>
               <motion.tbody variants={tableContainerVariants} initial="hidden" animate="visible" className="divide-y divide-slate-50">
-                {evals.map((e) => (
+                {filteredEvals.map((e) => (
                   <motion.tr key={e._id || e.id} variants={tableRowVariants} className="hover:bg-blue/5 transition-colors">
                     <td className="px-6 py-4 font-bold text-slate-700 text-sm">{employeeName(e)}</td>
                     <td className="px-6 py-4"><span className="text-amber-400 font-bold">{Array(e.rating).fill('★').join('')}</span></td>
@@ -2282,6 +2529,7 @@ export const FinancialsPage = () => {
   const [salesTotal, setSalesTotal] = useState(0);
   const [rentTotal, setRentTotal] = useState(0);
   const [payments, setPayments] = useState([]);
+  const [paymentSearch, setPaymentSearch] = useState('');
   const [totalReceived, setTotalReceived] = useState(0);
   const [transactionOptions, setTransactionOptions] = useState([]);
   const [installmentsForSelectedTx, setInstallmentsForSelectedTx] = useState([]);
@@ -2317,7 +2565,10 @@ export const FinancialsPage = () => {
       setTransactionOptions(allTx);
       setInstallments(instRes.data?.installments || []);
       const payList = payRes.data?.payments || [];
-      setPayments(payList);
+      setPayments(payList.map((p) => {
+        const tx = allTx.find((t) => String(toId(t)) === String(toId(p.transactionId)));
+        return { ...p, transaction: tx || p.transaction || null };
+      }));
       setTotalReceived(payList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
     });
   }, []);
@@ -2420,6 +2671,40 @@ export const FinancialsPage = () => {
 
   const handleGenerate = async (evt) => {
     evt.preventDefault();
+    const selectedTx = (transactionOptions || []).find((t) => String(t.id) === String(genForm.transactionId));
+    if (selectedTx && (selectedTx.transactionType || '').toLowerCase() === 'rent') {
+      const selectedTxId = String(genForm.transactionId || '');
+      const propertyId = String(toId(selectedTx.propertyId) || '');
+      if (selectedTxId && propertyId) {
+        const [y, m, d] = String(genForm.startDate || '').split('-').map(Number);
+        const start = new Date(y, (m || 1) - 1, d || 1);
+        const monthsStep = toFrequencyMonths(genForm.frequency);
+        const end = addMonths(start, Math.max(0, (Number(genForm.numberOfInstallments) || 1) - 1) * monthsStep);
+        if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+          const allTx = await transactionService.getTransactions({ limit: 500 }).catch(() => ({ data: { transactions: [] } }));
+          const txList = (allTx.data?.transactions || []).filter((t) => (
+            String(toId(t.propertyId)) === propertyId
+            && (t.transactionType || '').toLowerCase() === 'rent'
+            && String(toId(t.id || t._id || t)) !== selectedTxId
+          ));
+          for (const tx of txList) {
+            const txId = String(toId(tx.id || tx._id || tx));
+            const instRes = await installmentService.getInstallments({ transactionId: txId, limit: 200 }).catch(() => ({ data: { installments: [] } }));
+            const list = instRes.data?.installments || [];
+            if (list.length === 0) continue;
+            const dueDates = list.map((i) => new Date(i.dueDate)).filter((dt) => !Number.isNaN(dt.getTime())).sort((a, b) => a - b);
+            if (dueDates.length === 0) continue;
+            const otherStart = dueDates[0];
+            const otherEnd = dueDates[dueDates.length - 1];
+            const overlap = start <= otherEnd && end >= otherStart;
+            if (overlap) {
+              toast.error('Cannot generate rent installments: overlaps with another rent period for this property.');
+              return;
+            }
+          }
+        }
+      }
+    }
     if (existingGenInstallmentsFin.length > 0 && !genForm.replaceExisting) {
       toast.error('This transaction already has installments. Use "Update dates only" or check "Replace existing installments".');
       return;
@@ -2475,6 +2760,13 @@ export const FinancialsPage = () => {
   const filteredTransForGen = transactionOptions.filter((t) => {
     const label = `${t.transactionType || ''} ${t.formattedTotal || ''} ${t.id || ''}`.toLowerCase();
     return !genTransSearch || label.includes(genTransSearch.toLowerCase());
+  });
+  const paymentRows = payments.filter((p) => {
+    const q = paymentSearch.trim().toLowerCase();
+    if (!q) return true;
+    const propertyName = p.transaction?.property?.name || p.transaction?.property?.title || '';
+    const text = `${methodLabel(p.method)} ${propertyName} ${p.formattedDate || ''} ${p.amount || ''}`.toLowerCase();
+    return text.includes(q);
   });
 
   return (
@@ -2638,27 +2930,38 @@ export const FinancialsPage = () => {
               <p className="text-[11px] font-bold text-green-600 uppercase tracking-wider">Total received</p>
               <p className="text-2xl font-black text-green-700 mt-1">EGP {new Intl.NumberFormat('en-EG').format(totalReceived)}</p>
             </div>
+            <div className="mt-4">
+              <input
+                type="text"
+                placeholder="Search payments by property, method, date..."
+                className="w-full sm:max-w-md px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all"
+                value={paymentSearch}
+                onChange={(e) => setPaymentSearch(e.target.value)}
+              />
+            </div>
             {payments.length > 0 && (
               <div className="mt-4 overflow-x-auto max-h-48">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead className="bg-slate-50/50">
                     <tr>
                       <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">Amount</th>
+                      <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">Property</th>
                       <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">Method</th>
                       <th className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase">Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {payments.slice(0, 20).map((p) => (
+                    {paymentRows.slice(0, 20).map((p) => (
                       <tr key={p.id}>
                         <td className="px-4 py-2 font-semibold text-green-600">EGP {new Intl.NumberFormat('en-EG').format(p.amount || 0)}</td>
+                        <td className="px-4 py-2 text-slate-600">{p.transaction?.property?.name || p.transaction?.property?.title || '—'}</td>
                         <td className="px-4 py-2 text-slate-600">{methodLabel(p.method)}</td>
                         <td className="px-4 py-2 text-slate-500">{p.formattedDate || (p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-EG') : '—')}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {payments.length > 20 && <p className="text-xs text-slate-400 mt-2">+{payments.length - 20} more</p>}
+                {paymentRows.length > 20 && <p className="text-xs text-slate-400 mt-2">+{paymentRows.length - 20} more</p>}
               </div>
             )}
           </div>
@@ -2669,7 +2972,7 @@ export const FinancialsPage = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Transaction (search then select)</label>
-            <input type="text" placeholder="Search by amount or ID..." className="w-full mb-2 px-4 py-2 border rounded-xl text-sm" value={transSearch} onChange={(e) => setTransSearch(e.target.value)} />
+            <input type="text" placeholder="Search by amount or ID..." className="w-full mb-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all" value={transSearch} onChange={(e) => setTransSearch(e.target.value)} />
             <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={form.transactionId} onChange={(e) => setF('transactionId', e.target.value)} required>
               <option value="">— Select transaction —</option>
               {filteredTransForForm.map((t) => (
@@ -2712,7 +3015,7 @@ export const FinancialsPage = () => {
         <form onSubmit={handleGenerate} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Transaction (search then select)</label>
-            <input type="text" placeholder="Search by amount or ID..." className="w-full mb-2 px-4 py-2 border rounded-xl text-sm" value={genTransSearch} onChange={(e) => setGenTransSearch(e.target.value)} />
+            <input type="text" placeholder="Search by amount or ID..." className="w-full mb-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition-all" value={genTransSearch} onChange={(e) => setGenTransSearch(e.target.value)} />
             <select className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue/50" value={genForm.transactionId} onChange={(e) => setG('transactionId', e.target.value)} required>
               <option value="">— Select transaction —</option>
               {filteredTransForGen.map((t) => (

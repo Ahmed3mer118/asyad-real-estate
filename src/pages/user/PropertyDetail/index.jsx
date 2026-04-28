@@ -9,6 +9,13 @@ import { normalizeAssetUrl } from '../../../utils/assetUrl.js';
 import { toast } from 'react-toastify';
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+const getAvailabilityLabel = (property) => {
+  const availability = (property?.availability || '').toLowerCase();
+  if (availability === 'sold') return 'Sold';
+  if (availability === 'rented') return 'Rented';
+  if (availability === 'unavailable') return property?.statusSaleRent === 'rent' ? 'Rented' : 'Unavailable';
+  return 'Available';
+};
 
 const PropertyDetailPage = () => {
   const { slug } = useParams();
@@ -159,11 +166,7 @@ const PropertyDetailPage = () => {
                     {property.badgeText}
                   </Badge>
                   <Badge color={property.availability === 'available' ? 'green' : property.availability === 'unavailable' ? 'gray' : 'rose'}>
-                    {property.availability === '"available'
-                      ? '"available'
-                      : property.availability === 'unavailable'
-                        ? 'Unavailable'
-                        : 'Available'}
+                    {getAvailabilityLabel(property)}
                   </Badge>
                 </div>
                 <h1 className="font-display text-2xl lg:text-3xl font-bold text-dark">{property.name}</h1>
@@ -235,7 +238,7 @@ const PropertyDetailPage = () => {
                 {(property.availability || 'available') !== 'available' ? (
                   <div className="text-center py-6 px-4 bg-amber-50 border border-amber-200 rounded-xl">
                     <p className="font-semibold text-amber-800">This property is not available for viewings</p>
-                    <p className="text-sm text-amber-700 mt-1">This property has been "available or rented and viewings can no longer be booked.</p>
+                    <p className="text-sm text-amber-700 mt-1">Status: {getAvailabilityLabel(property)}. Viewings can no longer be booked.</p>
                     <Link to="/explore" className="inline-block mt-4 text-primary font-semibold hover:underline">Browse available properties</Link>
                   </div>
                 ) : isAuth ? (
