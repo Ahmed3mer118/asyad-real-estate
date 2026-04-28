@@ -47,6 +47,7 @@ export class Property {
       address: data.location?.address || '',
       latitude: data.location?.latitude ?? null,
       longitude: data.location?.longitude ?? null,
+      googleMapsUrl: data.location?.googleMapsUrl || data.location?.googleMapUrl || data.location?.mapUrl || '',
     };
     this.images = Property.normalizeImages(
       Array.isArray(data.images) ? data.images : data.images ? [data.images] : []

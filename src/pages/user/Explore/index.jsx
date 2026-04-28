@@ -14,6 +14,31 @@ const SORT_OPTIONS = [
   { value: 'price_asc', label: 'Price: Low → High' },
   { value: 'price_desc', label: 'Price: High → Low' },
 ];
+const SERVER_FETCH_LIMIT = 500;
+
+const mapUiStatusToApi = (value) => {
+  if (value === 'for_sale') return 'sale';
+  if (value === 'for_rent') return 'rent';
+  return value;
+};
+
+const sortProperties = (list, sortValue) => {
+  const sorted = [...list];
+  if (sortValue === 'price_asc') {
+    sorted.sort((a, b) => (a?.price || 0) - (b?.price || 0));
+    return sorted;
+  }
+  if (sortValue === 'price_desc') {
+    sorted.sort((a, b) => (b?.price || 0) - (a?.price || 0));
+    return sorted;
+  }
+  sorted.sort((a, b) => {
+    const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bTime - aTime;
+  });
+  return sorted;
+};
 
 /* Chip filter button */
 const Chip = ({ active, onClick, children }) => (
@@ -59,20 +84,51 @@ const ExplorePage = () => {
   const fetchProperties = async () => {
     setLoading(true);
     try {
-      const params = { page, limit: LIMIT };
-      if (debouncedSearch) params.search = debouncedSearch;
+      const params = { page: 1, limit: SERVER_FETCH_LIMIT };
       if (filters.city) params.city = filters.city;
-      if (filters.type) params.type = filters.type;
-      if (filters.status) params.status = filters.status;
+      if (filters.status) {
+        const mapped = mapUiStatusToApi(filters.status);
+        params.statusSaleRent = mapped;
+      }
       if (filters.minPrice) params.minPrice = filters.minPrice;
       if (filters.maxPrice) params.maxPrice = filters.maxPrice;
-      if (filters.minBedrooms) params.minBedrooms = filters.minBedrooms;
-      if (filters.furnished) params.furnished = filters.furnished;
-      if (filters.sort) params.sort = filters.sort;
       const res = await propertyService.getList(params);
-      const list = res.data?.properties || [];
-      setProperties(list);
-      setTotal(res.data?.total ?? 0);
+      const list = Array.isArray(res.data?.properties) ? res.data.properties : [];
+      const searchValue = String(debouncedSearch || '').trim().toLowerCase();
+      const minBedrooms = Number(filters.minBedrooms || 0);
+
+      const filtered = list.filter((p) => {
+        if (searchValue) {
+          const haystack = [
+            p?.title,
+            p?.name,
+            p?.location?.city,
+            p?.location?.address,
+          ].filter(Boolean).join(' ').toLowerCase();
+          if (!haystack.includes(searchValue)) return false;
+        }
+
+        if (filters.type && p?.propertyType !== filters.type) return false;
+
+        if (minBedrooms > 0) {
+          const bedrooms = Number(p?.details?.bedrooms || 0);
+          if (bedrooms < minBedrooms) return false;
+        }
+
+        if (filters.furnished) {
+          const isFurnished = Boolean(p?.details?.furnished);
+          if (filters.furnished === 'true' && !isFurnished) return false;
+          if (filters.furnished === 'false' && isFurnished) return false;
+        }
+
+        return true;
+      });
+
+      const sorted = sortProperties(filtered, filters.sort);
+      const start = (page - 1) * LIMIT;
+      const paged = sorted.slice(start, start + LIMIT);
+      setProperties(paged);
+      setTotal(sorted.length);
     } catch {
       setProperties([]);
       setTotal(0);
