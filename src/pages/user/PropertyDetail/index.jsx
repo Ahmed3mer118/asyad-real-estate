@@ -8,6 +8,8 @@ import { getToken } from '../../../utils/authUtils.js';
 import { normalizeAssetUrl } from '../../../utils/assetUrl.js';
 import { toast } from 'react-toastify';
 
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+
 const PropertyDetailPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -28,13 +30,10 @@ const PropertyDetailPage = () => {
     let cancelled = false;
     (async () => {
       try {
-        let res = null;
-        try {
-          res = await propertyService.getBySlug(slug);
-        } catch {
-          // Backward compatibility for old links that still contain object id.
-          res = await propertyService.getById(slug);
-        }
+        const isObjectId = OBJECT_ID_RE.test(String(slug || '').trim());
+        const res = isObjectId
+          ? await propertyService.getById(slug)
+          : await propertyService.getBySlug(slug);
         if (!cancelled) {
           const nextProperty = res.data?.property || null;
           setProperty(nextProperty);

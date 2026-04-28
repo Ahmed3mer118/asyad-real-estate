@@ -7,6 +7,7 @@ import { getToken } from '../../utils/authUtils.js';
 import { toast } from 'react-toastify';
 
 const PropertyCard = ({ property, onFavoriteChange }) => {
+  console.log(property);
   const navigate = useNavigate();
   const isAuthenticated = !!getToken();
   const [favorited, setFavorited] = useState(property.isFavorited);

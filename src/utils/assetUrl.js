@@ -1,4 +1,14 @@
 const LOCAL_UPLOAD_ORIGIN_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i;
+const UPLOADS_SEGMENT_RE = /^\/?uploads(?:\/|$)/i;
+
+const ensureUploadsPath = (pathname = '') => {
+  if (!pathname) return '/uploads';
+  if (UPLOADS_SEGMENT_RE.test(pathname)) {
+    return pathname.startsWith('/') ? pathname : `/${pathname}`;
+  }
+  const clean = pathname.replace(/^\/+/, '');
+  return `/uploads/${clean}`;
+};
 
 const getApiOrigin = () => {
   const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -25,7 +35,7 @@ export const normalizeAssetUrl = (value) => {
     if (apiOrigin && LOCAL_UPLOAD_ORIGIN_RE.test(raw)) {
       try {
         const url = new URL(raw);
-        return `${apiOrigin}${url.pathname}${url.search}${url.hash}`;
+        return `${apiOrigin}${ensureUploadsPath(url.pathname)}${url.search}${url.hash}`;
       } catch {
         return raw.replace(LOCAL_UPLOAD_ORIGIN_RE, apiOrigin);
       }
@@ -40,8 +50,7 @@ export const normalizeAssetUrl = (value) => {
   const apiOrigin = getApiOrigin();
   if (!apiOrigin) return raw;
 
-  let path = raw.replace(/^\.\//, '');
-  if (!path.startsWith('/')) path = `/${path}`;
+  const path = ensureUploadsPath(raw.replace(/^\.\//, ''));
 
   return `${apiOrigin}${path}`;
 };

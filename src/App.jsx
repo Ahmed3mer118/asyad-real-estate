@@ -114,10 +114,10 @@ const App = () => (
           <Route path="/verify-email" element={<PublicOnly><VerifyEmailPage /></PublicOnly>} />
 
           {/* ── DASHBOARD ROUTES (protected by role) ── */}
-          {/* <Route path="/dashboard" element={<PrivateRoute allowedRoles={['admin']}><OverviewPage /></PrivateRoute>} /> */}
-          <Route path="/dashboard" element={<OverviewPage />} />
-          {/* <Route path="/dashboard/properties" element={<PrivateRoute allowedRoles={['admin']}><PropertiesPage /></PrivateRoute>} /> */}
-          <Route path="/dashboard/properties" element={<PropertiesPage />} />
+          {/* <Route path="/dashboard" element={<OverviewPage />} /> */}
+          {/* <Route path="/dashboard/properties" element={<PropertiesPage />} /> */}
+          <Route path="/dashboard" element={<PrivateRoute allowedRoles={['admin']}><OverviewPage /></PrivateRoute>} />
+          <Route path="/dashboard/properties" element={<PrivateRoute allowedRoles={['admin']}><PropertiesPage /></PrivateRoute>} />
           <Route path="/dashboard/users" element={<PrivateRoute allowedRoles={['admin']}><UsersPage /></PrivateRoute>} />
           <Route path="/dashboard/requests" element={<PrivateRoute allowedRoles={['admin']}><RequestsPage /></PrivateRoute>} />
           <Route path="/dashboard/appointments" element={<PrivateRoute allowedRoles={['admin']}><AppointmentsPage /></PrivateRoute>} />
